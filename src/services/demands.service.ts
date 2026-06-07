@@ -24,6 +24,12 @@ export function subscribeToDemands(
       id: doc.id,
       ...doc.data(),
     })) as Demand[];
+
+    console.log(
+      '[snapshot]',
+      demands.find(d => d.id === 'jIUMTz4fZX069BPminwt')
+    );
+
     callback(demands);
   });
 }
@@ -55,6 +61,12 @@ export async function updateDemand(
   id: string,
   data: Partial<Omit<Demand, 'id' | 'userId' | 'createdAt'>>
 ): Promise<void> {
+  console.group('[updateDemand]');
+  console.trace();
+  console.log('id:', id);
+  console.log('data:', data);
+  console.groupEnd();
+
   const updateData: Record<string, unknown> = {
     ...data,
     updatedAt: Timestamp.now(),
@@ -66,6 +78,8 @@ export async function updateDemand(
     updateData.completedAt = null;
   }
   await updateDoc(doc(db, COLLECTION, id), updateData);
+
+  console.log('[updateDemand] DEPOIS')
 }
 
 export async function deleteDemand(id: string): Promise<void> {

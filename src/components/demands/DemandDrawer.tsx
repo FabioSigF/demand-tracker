@@ -4,9 +4,7 @@ import { Demand, Operation, Status } from '@/types';
 import { OPERATIONS, STATUSES } from '@/lib/constants';
 import { TiptapEditor } from '../editor/TiptapEditor';
 import { X, Calendar, AlertCircle, RefreshCw, FileText, CheckCircle } from 'lucide-react';
-import { formatDateShort, fromTimestamp, toTimestamp } from '@/lib/utils';
-import { Timestamp } from 'firebase/firestore';
-import { useDebounce } from 'use-debounce';
+import { fromTimestamp, toTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface DemandDrawerProps {
@@ -16,157 +14,175 @@ interface DemandDrawerProps {
   onUpdate: (id: string, data: Partial<Omit<Demand, 'id' | 'userId' | 'createdAt'>>) => Promise<void>;
 }
 
+type TextFields = { task: string; notes: string; history: string };
+
 export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawerProps) {
-  const [task, setTask] = useState('');
-  const [notes, setNotes] = useState('');
-  const [history, setHistory] = useState('');
-  const [operation, setOperation] = useState<Operation>('Outro');
-  const [status, setStatus] = useState<Status>('Pendente');
+  // ── Estado de UI ──────────────────────────────────────────────────────────
+  const [demandId, setDemandId] = useState('');  // ← novo
+  const [task,         setTask]         = useState('');
+  const [notes,        setNotes]        = useState('');
+  const [history,      setHistory]      = useState('');
+  const [operation,    setOperation]    = useState<Operation>('Outro');
+  const [status,       setStatus]       = useState<Status>('Pendente');
   const [startDateStr, setStartDateStr] = useState('');
-  const [deadlineStr, setDeadlineStr] = useState('');
+  const [deadlineStr,  setDeadlineStr]  = useState('');
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
-  // Debounced changes
-  const [debouncedNotes] = useDebounce(notes, 2000);
-  const [debouncedHistory] = useDebounce(history, 2000);
-  const [debouncedTask] = useDebounce(task, 2000);
+  // ── Refs estáticos ────────────────────────────────────────────────────────
+  const demandIdRef    = useRef<string | null>(null);
+  const onUpdateRef    = useRef(onUpdate);
+  useEffect(() => { onUpdateRef.current = onUpdate; });
+  const onCloseRef     = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
 
-  // Refs de controle
-  const initializedDemandIdRef = useRef<string | null>(null);
-  const savedValuesRef = useRef({ task: '', notes: '', history: '' });
-  const isInitializingRef = useRef(false);
+  const pendingRef       = useRef<TextFields>({ task: '', notes: '', history: '' });
+  const savedRef         = useRef<TextFields>({ task: '', notes: '', history: '' });
+  const initializedIdRef = useRef<string | null>(null);
+  const timerRef         = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef      = useRef(false);
 
-  // Sync state with open demand
-  useEffect(() => {
-    if (!demand || !isOpen) return;
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const clearTimer = () => {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+  };
 
-    if (initializedDemandIdRef.current === demand.id) return;
+  const hasPendingChanges = (): boolean => {
+    const p = pendingRef.current;
+    const s = savedRef.current;
+    return p.task !== s.task || p.notes !== s.notes || p.history !== s.history;
+  };
 
-    isInitializingRef.current = true;
+  // ── saveNow ───────────────────────────────────────────────────────────────
+  const saveNow = useCallback(async (): Promise<boolean> => {
+    const id = demandIdRef.current;
+    if (!id) return false;
+    if (!hasPendingChanges()) return false;
+    if (isSavingRef.current) return false;
 
-    setTask(demand.task || '');
-    setNotes(demand.notes || '');
-    setHistory(demand.history || '');
-    setOperation(demand.operation);
-    setStatus(demand.status);
-    setStartDateStr(
-      demand.startDate
-        ? fromTimestamp(demand.startDate).toISOString().split('T')[0]
-        : ''
-    );
-    setDeadlineStr(
-      demand.deadline
-        ? fromTimestamp(demand.deadline).toISOString().split('T')[0]
-        : ''
-    );
-    setSavingStatus('idle');
-
-    savedValuesRef.current = {
-      task: demand.task || '',
-      notes: demand.notes || '',
-      history: demand.history || '',
-    };
-
-    initializedDemandIdRef.current = demand.id;
-
-    queueMicrotask(() => {
-      isInitializingRef.current = false;
-    });
-  }, [demand, isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      initializedDemandIdRef.current = null;
-    }
-  }, [isOpen]);
-
-  const saveNow = useCallback(async () => {
-    if (!demand) return;
-
+    isSavingRef.current = true;
     setSavingStatus('saving');
+    const snapshot = { ...pendingRef.current };
 
-    await onUpdate(demand.id, {
-      task,
-      notes,
-      history,
-    });
-
-    savedValuesRef.current = {
-      task,
-      notes,
-      history,
-    };
-
-    setSavingStatus('saved');
-  }, [demand, task, notes, history, onUpdate]);
-
-  const runAutosave = useCallback(async () => {
-    if (isInitializingRef.current) return;
-    if (!demand || !isOpen) return;
-
-    const taskChanged = debouncedTask !== savedValuesRef.current.task;
-    const notesChanged = debouncedNotes !== savedValuesRef.current.notes;
-    const historyChanged = debouncedHistory !== savedValuesRef.current.history;
-
-    if (!taskChanged && !notesChanged && !historyChanged) return;
-
-    setSavingStatus('saving');
     try {
-      await onUpdate(demand.id, {
-        task: debouncedTask,
-        notes: debouncedNotes,
-        history: debouncedHistory,
-      });
-      savedValuesRef.current = {
-        task: debouncedTask,
-        notes: debouncedNotes,
-        history: debouncedHistory,
-      };
-
+      await onUpdateRef.current(id, snapshot);
+      savedRef.current = snapshot;
       setSavingStatus('saved');
       setTimeout(() => setSavingStatus('idle'), 2000);
-    } catch {
+      return true;
+    } catch (err) {
       setSavingStatus('idle');
-      toast.error('Falha ao salvar alterações automáticas');
+      throw new Error('save_failed');
+    } finally {
+      isSavingRef.current = false;
     }
-  }, [debouncedTask, debouncedNotes, debouncedHistory, demand, isOpen, onUpdate]);
+  }, []);
 
-  useEffect(() => {
-    runAutosave();
-  }, [runAutosave]);
+  // ── scheduleAutosave ──────────────────────────────────────────────────────
+  const scheduleAutosave = useCallback(() => {
+    clearTimer();
+    timerRef.current = setTimeout(async () => {
+      try { await saveNow(); }
+      catch { toast.error('Falha ao salvar alterações automáticas'); }
+    }, 2000);
+  }, []);
 
-  if (!isOpen || !demand) return null;
+  // ── handleClose ───────────────────────────────────────────────────────────
+  const handleClose = useCallback(async () => {
+    clearTimer();
+    if (hasPendingChanges()) {
+      try { await saveNow(); }
+      catch { toast.error('Algumas alterações podem não ter sido salvas'); }
+    }
+    onCloseRef.current();
+  }, []);
 
-  const handleFieldChange = async (fields: Partial<Omit<Demand, 'id' | 'userId' | 'createdAt'>>) => {
+  // ── handleFieldChange — save imediato (campos não-texto) ──────────────────
+  const handleFieldChange = useCallback(async (
+    fields: Partial<Omit<Demand, 'id' | 'userId' | 'createdAt'>>
+  ) => {
+    const id = demandIdRef.current;
+    if (!id) return;
     try {
       setSavingStatus('saving');
-      await onUpdate(demand.id, fields);
+      await onUpdateRef.current(id, fields);
       setSavingStatus('saved');
       setTimeout(() => setSavingStatus('idle'), 2000);
     } catch {
       setSavingStatus('idle');
       toast.error('Erro ao atualizar campo');
     }
-  };
+  }, []);
 
-  const handleDateChange = (type: 'startDate' | 'deadline', dateStr: string) => {
+  const handleDateChange = useCallback((type: 'startDate' | 'deadline', dateStr: string) => {
     if (!dateStr) return;
-    const date = new Date(dateStr + 'T12:00:00'); // set mid-day to avoid TZ shifts
+    const date = new Date(dateStr + 'T12:00:00');
     const ts = toTimestamp(date);
+    if (type === 'startDate') { setStartDateStr(dateStr); handleFieldChange({ startDate: ts }); }
+    else                      { setDeadlineStr(dateStr);  handleFieldChange({ deadline: ts }); }
+  }, []);
 
-    if (type === 'startDate') {
-      setStartDateStr(dateStr);
-      handleFieldChange({ startDate: ts });
-    } else {
-      setDeadlineStr(dateStr);
-      handleFieldChange({ deadline: ts });
+  // ── Inicialização — só quando demand.id muda ou drawer abre ───────────────
+  useEffect(() => {
+    if (!demand || !isOpen) return;
+    if (initializedIdRef.current === demand.id) return;
+
+    clearTimer();
+
+    const textValues: TextFields = {
+      task:    demand.task    || '',
+      notes:   demand.notes   || '',
+      history: demand.history || '',
+    };
+
+    setDemandId(demand.demandId || '');  // ← inicializa demandId
+    setTask(textValues.task);
+    setNotes(textValues.notes);
+    setHistory(textValues.history);
+    setOperation(demand.operation);
+    setStatus(demand.status);
+    setStartDateStr(demand.startDate ? fromTimestamp(demand.startDate).toISOString().split('T')[0] : '');
+    setDeadlineStr(demand.deadline   ? fromTimestamp(demand.deadline).toISOString().split('T')[0]   : '');
+    setSavingStatus('idle');
+
+    pendingRef.current = { ...textValues };
+    savedRef.current   = { ...textValues };
+    demandIdRef.current    = demand.id;
+    initializedIdRef.current = demand.id;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demand?.id, isOpen]);
+
+  // Reseta guard ao fechar
+  useEffect(() => {
+    if (!isOpen) {
+      initializedIdRef.current = null;
+      demandIdRef.current = null;
     }
-  };
+  }, [isOpen]);
 
-  const handleClose = async () => {
-    await saveNow();
-    onClose();
-  };
+  // Sincroniza campos não-texto com o objeto vivo (operação, status, datas)
+  useEffect(() => {
+    if (!demand || !isOpen) return;
+    if (initializedIdRef.current !== demand.id) return;
+    setOperation(demand.operation);
+    setStatus(demand.status);
+    setStartDateStr(demand.startDate ? fromTimestamp(demand.startDate).toISOString().split('T')[0] : '');
+    setDeadlineStr(demand.deadline   ? fromTimestamp(demand.deadline).toISOString().split('T')[0]   : '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demand?.operation, demand?.status, demand?.startDate, demand?.deadline]);
+
+  // Sincroniza demandId com o objeto vivo (pode ser editado pelo DemandRow)
+  useEffect(() => {
+    if (!demand || !isOpen) return;
+    if (initializedIdRef.current !== demand.id) return;
+    setDemandId(demand.demandId || '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demand?.demandId]);
+
+  // Limpa timer ao desmontar
+  useEffect(() => () => clearTimer(), []);
+
+  // ── Render guard ──────────────────────────────────────────────────────────
+  if (!isOpen || !demand) return null;
 
   return (
     <>
@@ -182,14 +198,24 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-lg font-mono font-bold text-violet-500">
-              {demand.demandId || '#----'}
-            </span>
+            {/* ── demandId editável ── */}
+            <input
+              type="text"
+              value={demandId}
+              maxLength={6}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDemandId(val);
+                // Save imediato (campo curto, sem necessidade de debounce longo)
+                handleFieldChange({ demandId: val });
+              }}
+              placeholder="#----"
+              className="w-24 bg-transparent text-lg font-mono font-bold text-violet-500 border-b border-transparent hover:border-violet-400/60 focus:border-violet-500 focus:outline-none transition pb-0.5"
+            />
             <span className="text-xs text-muted-foreground">• Detalhes da Demanda</span>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Saving indicator */}
             {savingStatus === 'saving' && (
               <span className="flex items-center gap-1 text-xs text-muted-foreground">
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -202,7 +228,6 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
                 Salvo
               </span>
             )}
-
             <button
               onClick={handleClose}
               className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
@@ -224,7 +249,12 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
               type="text"
               value={task}
               maxLength={200}
-              onChange={(e) => setTask(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setTask(value);
+                pendingRef.current.task = value;
+                scheduleAutosave();
+              }}
               placeholder="Descreva a tarefa..."
               className="w-full bg-transparent text-lg font-bold text-foreground border-b border-transparent hover:border-border/60 focus:border-primary pb-1 focus:outline-none transition"
             />
@@ -246,9 +276,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
                 }}
                 className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium"
               >
-                {OPERATIONS.map(op => (
-                  <option key={op} value={op}>{op}</option>
-                ))}
+                {OPERATIONS.map(op => <option key={op} value={op}>{op}</option>)}
               </select>
             </div>
 
@@ -266,9 +294,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
                 }}
                 className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium"
               >
-                {STATUSES.map(st => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
+                {STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
               </select>
             </div>
 
@@ -309,7 +335,12 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
             </label>
             <textarea
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNotes(value);
+                pendingRef.current.notes = value;
+                scheduleAutosave();
+              }}
               placeholder="Digite notas rápidas sobre esta demanda..."
               className="w-full bg-muted/20 border border-border/80 rounded-xl p-3 text-sm text-foreground placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary transition resize-y min-h-[80px]"
             />
@@ -323,7 +354,11 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
             </label>
             <TiptapEditor
               value={history}
-              onChange={(val) => setHistory(val)}
+              onChange={(value) => {
+                setHistory(value);
+                pendingRef.current.history = value;
+                scheduleAutosave();
+              }}
             />
           </div>
 

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -16,7 +16,6 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Demand, Operation, Status } from '@/types';
 import { useDemands } from '@/hooks/useDemands';
 import { DemandRow } from './DemandRow';
 import { DemandFilters, FilterState } from './DemandFilters';
@@ -53,17 +52,44 @@ export function DemandsTable() {
   const [sortField, setSortField] = useState<'operation' | 'startDate' | 'status' | 'order'>('order');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  // ── Drawer: guarda apenas o ID, não o objeto ──────────────────────────────
-  // O objeto `selectedDemand` é DERIVADO de `demands` via useMemo.
-  // Isso garante que o Drawer sempre receba o valor mais recente do Firestore,
-  // sem nunca trabalhar com um snapshot congelado.
+  // ── Drawer state ──────────────────────────────────────────────────────────
   const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
+  /**
+   * selectedDemand é DERIVADO de demands (objeto vivo).
+   * Nunca é um snapshot congelado — sempre reflete o Firestore atual.
+   */
   const selectedDemand = useMemo(
     () => demands.find(d => d.id === selectedDemandId) ?? null,
     [demands, selectedDemandId]
   );
+
+  /**
+   * Ref para o callback de save do Drawer.
+   * O Drawer expõe uma função saveNow via este ref para que o pai
+   * possa aguardar o save ANTES de limpar o selectedDemandId.
+   *
+   * Isso resolve o bug onde handleCloseDrawer era síncrono e
+   * limpava o estado antes do save async terminar.
+   */
+  const drawerSaveRef = useRef<(() => Promise<boolean>) | null>(null);
+
+  /**
+   * Fecha o drawer aguardando o save ser concluído antes de
+   * limpar selectedDemandId. Caso contrário, demandIdRef no Drawer
+   * seria nulado pelo re-render causado pelo setSelectedDemandId(null)
+   * enquanto o save ainda estaria em andamento.
+   */
+  const handleCloseDrawer = useCallback(async () => {
+    // O Drawer já chama saveNow internamente no handleClose.
+    // Aqui apenas aguardamos ele terminar antes de limpar o estado.
+    setIsDrawerOpen(false);
+    // Dá um tick para o Drawer processar o close e terminar o save
+    // antes de remover a demanda do estado (o que causaria demand = null)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    setSelectedDemandId(null);
+  }, []);
   // ─────────────────────────────────────────────────────────────────────────
 
   const [adjustTimerData, setAdjustTimerData] = useState<{
@@ -87,7 +113,6 @@ export function DemandsTable() {
         } else {
           setActiveTab('active');
         }
-        // Guarda apenas o ID — o objeto será derivado automaticamente
         setSelectedDemandId(match.id);
         setIsDrawerOpen(true);
         const params = new URLSearchParams(searchParams);
@@ -132,8 +157,6 @@ export function DemandsTable() {
       const newId = await addDemand();
       if (newId) {
         toast.success('Nova linha criada. Edite os campos diretamente.');
-        // Guarda apenas o ID — quando `demands` atualizar com a nova demanda,
-        // `selectedDemand` será resolvido automaticamente via useMemo
         setSelectedDemandId(newId);
         setIsDrawerOpen(true);
       }
@@ -153,11 +176,6 @@ export function DemandsTable() {
       setSortField(field);
       setSortDirection('asc');
     }
-  };
-
-  const handleCloseDrawer = () => {
-    setIsDrawerOpen(false);
-    setSelectedDemandId(null); // limpa o ID ao fechar
   };
 
   const currentList = activeTab === 'active' ? activeDemands : doneDemands;
@@ -311,8 +329,8 @@ export function DemandsTable() {
                         <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </span>
                     </th>
-                    <th className="p-2 min-w-[150px]">Anotações Rápidas</th>
-                    <th className="p-2 w-44">Tempo</th>
+                    <th className="p-2 min-w-[400px]">Anotações Rápidas</th>
+                    <th className="p-2 w-30">Tempo</th>
                     <th className="p-2 w-20 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -333,10 +351,9 @@ export function DemandsTable() {
                         <DemandRow
                           key={demand.id}
                           demand={demand}
-                          onUpdate={editDemand}
                           onDelete={removeDemand}
                           onOpenDetails={(d) => {
-                            setSelectedDemandId(d.id); // ← só o ID
+                            setSelectedDemandId(d.id);
                             setIsDrawerOpen(true);
                           }}
                           onStopTimerClick={handleStopTimer}
