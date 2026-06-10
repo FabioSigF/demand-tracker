@@ -5,6 +5,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { useTimerSync } from '@/hooks/useTimer';
 import { useNotifications } from '@/hooks/useNotifications';
 import { usePathname } from 'next/navigation';
+import { NotepadWidget } from '@/components/notepad/NotepadWidget';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Sync background timers from firestore to React Context
@@ -31,10 +32,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Content Wrapper */}
         <div className="flex flex-col flex-1 h-full min-w-0">
           <Header title={pageTitle} />
-          
+
           <main className="flex-1 overflow-y-auto min-h-0 bg-background/30">
             {children}
           </main>
+
+          <NotepadWidget />
         </div>
       </div>
     </AuthGuard>

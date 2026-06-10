@@ -87,3 +87,13 @@ export interface Task {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
+
+export interface NotePage {
+  id: string;
+  userId: string;
+  title: string;
+  content: string; // HTML do Tiptap
+  order: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

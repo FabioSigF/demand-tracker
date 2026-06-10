@@ -39,5 +39,11 @@ service cloud.firestore {
       allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
     }
+
+    // Rules for Notepad pages
+    match /notepad_pages/{pageId} {
+      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
   }
 }

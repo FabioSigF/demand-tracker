@@ -97,6 +97,19 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "notepad_pages",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "order",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []
