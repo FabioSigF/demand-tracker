@@ -70,3 +70,20 @@ export interface AnalyticsData {
   completedCount: number;
   delayedCount: number;
 }
+
+export type TaskStatus = 'Pendente' | 'Em andamento' | 'Cancelado' | 'Concluída';
+
+export interface Task {
+  id: string;
+  userId: string;
+  demandId: string;
+  demandTitle: string;
+  operation: Operation;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  dueDate?: Timestamp;
+  completedAt?: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

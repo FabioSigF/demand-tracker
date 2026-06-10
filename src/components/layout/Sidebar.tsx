@@ -9,6 +9,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -16,6 +17,7 @@ import { useState } from 'react';
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/demands',   label: 'Demandas',  icon: ListTodo },
+  { href: '/tasks',     label: 'Tarefas',   icon: ClipboardCheck },
   { href: '/analytics', label: 'Analytics', icon: PieChart },
   { href: '/alarms',    label: 'Alarmes',   icon: Bell },
 ];

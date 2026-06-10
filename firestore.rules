@@ -33,5 +33,11 @@ service cloud.firestore {
       allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
     }
+
+    // Rules for Tasks
+    match /tasks/{taskId} {
+      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
   }
 }
