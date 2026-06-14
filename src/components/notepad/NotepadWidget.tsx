@@ -19,17 +19,17 @@ interface PageEditorProps {
 }
 
 function PageEditor({ page, onSave }: PageEditorProps) {
-  const [title,   setTitle]   = useState(page.title);
+  const [title, setTitle] = useState(page.title);
   const [content, setContent] = useState(page.content);
 
   // Refs para autosave estável (mesmo padrão do DemandDrawer)
-  const pageIdRef    = useRef(page.id);
-  const onSaveRef    = useRef(onSave);
+  const pageIdRef = useRef(page.id);
+  const onSaveRef = useRef(onSave);
   useEffect(() => { onSaveRef.current = onSave; });
 
   const pendingRef = useRef({ title: page.title, content: page.content });
-  const savedRef   = useRef({ title: page.title, content: page.content });
-  const timerRef   = useRef<NodeJS.Timeout | null>(null);
+  const savedRef = useRef({ title: page.title, content: page.content });
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef = useRef(false);
 
   // Re-inicializa quando a página muda
@@ -38,8 +38,8 @@ function PageEditor({ page, onSave }: PageEditorProps) {
     setTitle(page.title);
     setContent(page.content);
     pendingRef.current = { title: page.title, content: page.content };
-    savedRef.current   = { title: page.title, content: page.content };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    savedRef.current = { title: page.title, content: page.content };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page.id]);
 
   const clearTimer = () => {
@@ -114,11 +114,11 @@ export function NotepadWidget() {
   const { pages, loading, addPage, editPage, removePage } = useNotepad();
   const { confirm } = useConfirm();
 
-  const [isOpen,      setIsOpen]      = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [isExpanded,  setIsExpanded]  = useState(false);
-  const [activeId,    setActiveId]    = useState<string | null>(null);
-  const [tabOffset,   setTabOffset]   = useState(0); // scroll horizontal de abas
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [tabOffset, setTabOffset] = useState(0); // scroll horizontal de abas
 
   // Seleciona a primeira página ao abrir ou ao carregar
   useEffect(() => {
@@ -193,10 +193,12 @@ export function NotepadWidget() {
         >
           {/* ── Titlebar ── */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30 shrink-0">
-            <NotebookPen className="w-3.5 h-3.5 text-violet-500 shrink-0" />
-            <span className="text-xs font-semibold text-foreground flex-1 select-none">
-              Bloco de Notas
-            </span>
+            <div className="flex items-center gap-2 w-full" onClick={() => setIsMinimized(v => !v)}>
+              <NotebookPen className="w-3.5 h-3.5 text-violet-500 shrink-0" />
+              <span className="text-xs font-semibold text-foreground flex-1 select-none">
+                Bloco de Notas
+              </span>
+            </div>
 
             <div className="flex items-center gap-1">
               {/* Minimizar */}

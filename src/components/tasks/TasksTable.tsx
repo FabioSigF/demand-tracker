@@ -1,5 +1,20 @@
 'use client';
 import { useState, useMemo, useCallback } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { useTasks } from '@/hooks/useTasks';
 import { useDemand } from '@/hooks/useDemand';
 import { TaskRow } from './TaskRow';
@@ -7,11 +22,24 @@ import { TaskDrawer } from './TaskDrawer';
 import { CreateTaskModal } from './CreateTaskModal';
 import { DemandDrawer } from '../demands/DemandDrawer';
 import { Task } from '@/types/index';
-import { Search, X, CheckCircle, Clock, Plus, ListTodo } from 'lucide-react';
+import { Search, X, CheckCircle, Clock, Plus, ListTodo, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { format, addDays, subDays, isToday } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 export function TasksTable() {
-  const { tasks, activeTasks, doneTasks, loading, editTask, removeTask } = useTasks();
+  const {
+    tasks,
+    activeTasks,
+    doneTasks,
+    loadingActive,
+    loadingDone,
+    doneDate,
+    setDoneDate,
+    editTask,
+    removeTask,
+    reorder,
+  } = useTasks();
 
   const [activeTab, setActiveTab] = useState<'active' | 'done'>('active');
   const [search,    setSearch]    = useState('');
@@ -53,8 +81,7 @@ export function TasksTable() {
     setSelectedDemandId(null);
   }, []);
 
-  // ── Toggle status — Pendente ↔ Concluída (atalho rápido da linha) ─────────
-  // Para os outros status (Em andamento, Cancelado) o usuário abre o drawer.
+  // ── Toggle status ─────────────────────────────────────────────────────────
   const handleToggleStatus = useCallback(async (task: Task) => {
     const newStatus = task.status === 'Concluída' ? 'Pendente' : 'Concluída';
     try {
@@ -65,7 +92,32 @@ export function TasksTable() {
     }
   }, [editTask]);
 
-  // ── Listas filtradas ──────────────────────────────────────────────────────
+  // ── Drag-and-drop — apenas na aba Em Atendimento ─────────────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = activeTasks.findIndex(t => t.id === active.id);
+    const newIndex  = activeTasks.findIndex(t => t.id === over.id);
+    const reordered = arrayMove(activeTasks, oldIndex, newIndex);
+    const updates   = reordered.map((t, i) => ({ id: t.id, order: (i + 1) * 1000 }));
+
+    try {
+      await reorder(updates);
+    } catch {
+      toast.error('Erro ao reordenar tarefas');
+    }
+  };
+
+  // Drag só funciona em Em Atendimento e sem busca ativa
+  const isDragEnabled = activeTab === 'active' && !search.trim();
+
+  // ── Filtro de busca (aplicado sobre a lista já carregada do Firestore) ────
   const currentList = activeTab === 'active' ? activeTasks : doneTasks;
 
   const filteredTasks = useMemo(() => {
@@ -80,13 +132,23 @@ export function TasksTable() {
     );
   }, [currentList, search]);
 
+  const loading = activeTab === 'active' ? loadingActive : loadingDone;
+
+  // ── Navegação de data para aba Finalizadas ────────────────────────────────
+  const doneDateLabel = isToday(doneDate)
+    ? 'Hoje'
+    : format(doneDate, "dd 'de' MMMM", { locale: ptBR });
+
+  const goToPrevDay = () => setDoneDate(d => subDays(d, 1));
+  const goToNextDay = () => setDoneDate(d => addDays(d, 1));
+  const goToToday   = () => setDoneDate(new Date());
+
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 bg-background/50">
 
       {/* Upper bar */}
       <div className="flex items-center justify-between border-b border-border bg-card/40 px-6 py-2 shrink-0">
         <div className="flex items-center gap-2">
-          {/* Em Atendimento = Pendente + Em andamento */}
           <button
             onClick={() => setActiveTab('active')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
@@ -101,8 +163,6 @@ export function TasksTable() {
               {activeTasks.length}
             </span>
           </button>
-
-          {/* Finalizadas = Concluída + Cancelado */}
           <button
             onClick={() => setActiveTab('done')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
@@ -128,9 +188,10 @@ export function TasksTable() {
         </button>
       </div>
 
-      {/* Search bar */}
+      {/* Search + filtro de data (data só aparece na aba Finalizadas) */}
       <div className="px-6 pt-4 shrink-0">
         <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl mb-4 shadow-sm">
+          {/* Busca textual */}
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
@@ -141,10 +202,64 @@ export function TasksTable() {
               className="w-full bg-muted/40 hover:bg-muted focus:bg-background border border-border rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
             />
           </div>
+
+          {/* Navegador de data — visível apenas na aba Finalizadas */}
+          {activeTab === 'done' && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={goToPrevDay}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                title="Dia anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/40 border border-border rounded-lg text-sm font-medium text-foreground min-w-[120px] justify-center">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                <span>{doneDateLabel}</span>
+              </div>
+
+              <button
+                onClick={goToNextDay}
+                disabled={isToday(doneDate)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Próximo dia"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              {!isToday(doneDate) && (
+                <button
+                  onClick={goToToday}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-violet-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition"
+                >
+                  Hoje
+                </button>
+              )}
+
+              {/* Input de data para seleção direta */}
+              <div className="relative">
+                <input
+                  type="date"
+                  value={format(doneDate, 'yyyy-MM-dd')}
+                  max={format(new Date(), 'yyyy-MM-dd')}
+                  onChange={(e) => {
+                    if (e.target.value) setDoneDate(new Date(e.target.value + 'T12:00:00'));
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  title="Selecionar data"
+                />
+                <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg border border-border/80 transition"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg border border-border/80 transition shrink-0"
             >
               <X className="w-4 h-4" />
               Limpar
@@ -157,77 +272,92 @@ export function TasksTable() {
       <div className="flex-1 overflow-auto px-6 pb-6 min-h-0">
         <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col">
           <div className="flex-1 overflow-auto">
-            <table className="w-full border-collapse text-left table-fixed min-w-[1100px]">
-              <thead className="bg-muted/30 border-b border-border sticky top-0 z-10 select-none">
-                <tr className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                  <th className="p-2 w-10"></th>
-                  <th className="p-2 w-36">Operação</th>
-                  <th className="p-2 min-w-[200px]">Tarefa</th>
-                  <th className="p-2 min-w-[350px]">Descrição</th>
-                  <th className="p-2 w-36">Status</th>
-                  <th className="p-2 w-24">Prazo</th>
-                  <th className="p-2 w-24">Criado em</th>
-                  <th className="p-2 w-12"></th>
-                </tr>
-              </thead>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <table className="w-full border-collapse text-left table-fixed min-w-[1100px]">
+                <thead className="bg-muted/30 border-b border-border sticky top-0 z-10 select-none">
+                  <tr className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                    <th className="p-2 w-8"></th>
+                    <th className="p-2 w-10"></th>
+                    <th className="p-2 w-36">Operação</th>
+                    <th className="p-2 min-w-[200px]">Tarefa</th>
+                    <th className="p-2 min-w-[350px]">Descrição</th>
+                    <th className="p-2 w-36">Status</th>
+                    <th className="p-2 w-24">Prazo</th>
+                    <th className="p-2 w-24">Criado em</th>
+                    <th className="p-2 w-12"></th>
+                  </tr>
+                </thead>
 
-              <tbody className="divide-y divide-border/60">
-                {loading ? (
-                  <tr>
-                    <td colSpan={8} className="p-8 text-center text-muted-foreground">
-                      Carregando tarefas...
-                    </td>
-                  </tr>
-                ) : filteredTasks.length > 0 ? (
-                  filteredTasks.map(task => (
-                    <TaskRow
-                      key={task.id}
-                      task={task}
-                      onDelete={removeTask}
-                      onOpenDetails={(t) => {
-                        setSelectedTaskId(t.id);
-                        setIsTaskDrawerOpen(true);
-                      }}
-                      onOpenDemand={handleOpenDemand}
-                      onToggleStatus={handleToggleStatus}
-                    />
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8}>
-                      <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-                        <div className="w-12 h-12 rounded-2xl bg-muted/40 flex items-center justify-center">
-                          <ListTodo className="w-6 h-6 text-muted-foreground/40" />
+                <tbody className="divide-y divide-border/60">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                        Carregando tarefas...
+                      </td>
+                    </tr>
+                  ) : filteredTasks.length > 0 ? (
+                    <SortableContext
+                      items={filteredTasks.map(t => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {filteredTasks.map(task => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          onDelete={removeTask}
+                          onOpenDetails={(t) => {
+                            setSelectedTaskId(t.id);
+                            setIsTaskDrawerOpen(true);
+                          }}
+                          onOpenDemand={handleOpenDemand}
+                          onToggleStatus={handleToggleStatus}
+                          isDragEnabled={isDragEnabled}
+                        />
+                      ))}
+                    </SortableContext>
+                  ) : (
+                    <tr>
+                      <td colSpan={9}>
+                        <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+                          <div className="w-12 h-12 rounded-2xl bg-muted/40 flex items-center justify-center">
+                            <ListTodo className="w-6 h-6 text-muted-foreground/40" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">
+                              {search
+                                ? 'Nenhuma tarefa encontrada'
+                                : activeTab === 'active'
+                                  ? 'Nenhuma tarefa em atendimento'
+                                  : `Nenhuma tarefa finalizada em ${doneDateLabel.toLowerCase()}`}
+                            </p>
+                            <p className="text-xs text-muted-foreground max-w-xs">
+                              {search
+                                ? 'Tente ajustar os termos da busca.'
+                                : activeTab === 'active'
+                                  ? 'Crie uma nova tarefa para começar.'
+                                  : 'Navegue entre os dias para ver outras tarefas finalizadas.'}
+                            </p>
+                          </div>
+                          {!search && activeTab === 'active' && (
+                            <button
+                              onClick={() => setIsCreateOpen(true)}
+                              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition shadow-lg shadow-violet-500/20"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Nova Tarefa
+                            </button>
+                          )}
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            {search
-                              ? 'Nenhuma tarefa encontrada'
-                              : activeTab === 'active'
-                                ? 'Nenhuma tarefa em atendimento hoje'
-                                : 'Nenhuma tarefa finalizada hoje'}
-                          </p>
-                          <p className="text-xs text-muted-foreground max-w-xs">
-                            {search
-                              ? 'Tente ajustar os termos da busca.'
-                              : 'Tarefas criadas hoje, com prazo para hoje ou finalizadas hoje aparecem aqui.'}
-                          </p>
-                        </div>
-                        {!search && activeTab === 'active' && (
-                          <button
-                            onClick={() => setIsCreateOpen(true)}
-                            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition shadow-lg shadow-violet-500/20"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Nova Tarefa
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </DndContext>
           </div>
         </div>
       </div>

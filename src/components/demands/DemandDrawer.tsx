@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Demand, Operation, Status } from '@/types';
-import { Task, TaskStatus } from '@/types/index';
+import { Task } from '@/types/index';
 import { OPERATIONS, STATUSES } from '@/lib/constants';
 import { TiptapEditor } from '../editor/TiptapEditor';
 import { X, Calendar, AlertCircle, RefreshCw, FileText, CheckCircle } from 'lucide-react';
@@ -33,14 +33,19 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // ── TaskDrawer aninhado ───────────────────────────────────────────────────
-  // Guarda apenas o ID — o objeto Task é derivado da lista viva do hook
   const [selectedTaskId,   setSelectedTaskId]   = useState<string | null>(null);
   const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
 
-  // Hook que mantém as tasks desta demanda sempre atualizadas via onSnapshot
-  const { tasks: demandTasks } = useTasksByDemand(isOpen ? demand?.id ?? null : null);
+  /**
+   * FONTE ÚNICA de tasks: um único hook para o DemandDrawer inteiro.
+   * O DemandTasksSection recebe as tasks como prop em vez de instanciar
+   * seu próprio hook — isso elimina a double-subscription e garante que
+   * toggle/criar atualize visualmente de imediato (mesmo estado).
+   */
+  const { tasks: demandTasks, pendingTasks, completedTasks, loading: tasksLoading, editTask, removeTask } =
+    useTasksByDemand(isOpen ? demand?.id ?? null : null);
 
-  // selectedTask é DERIVADO da lista viva — nunca um snapshot congelado
+  // selectedTask derivado da lista viva — nunca snapshot congelado
   const selectedTask = useMemo(
     () => demandTasks.find(t => t.id === selectedTaskId) ?? null,
     [demandTasks, selectedTaskId]
@@ -175,7 +180,6 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
     if (!isOpen) {
       initializedIdRef.current = null;
       demandIdRef.current = null;
-      // Fecha o TaskDrawer ao fechar o DemandDrawer
       setIsTaskDrawerOpen(false);
       setSelectedTaskId(null);
     }
@@ -204,7 +208,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
 
   return (
     <>
-      {/* Backdrop — só fecha se o TaskDrawer não estiver aberto */}
+      {/* Backdrop */}
       <div
         onClick={() => { if (!isTaskDrawerOpen) handleClose(); }}
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-40 animate-in fade-in duration-200"
@@ -249,7 +253,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
 
-          {/* Task / Title */}
+          {/* Título */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Tarefa (Título)
@@ -296,7 +300,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
             </div>
           </div>
 
-          {/* Quick Notes */}
+          {/* Anotações Rápidas */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-muted-foreground" />Anotações Rápidas
@@ -306,7 +310,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
               className="w-full bg-muted/20 border border-border/80 rounded-xl p-3 text-sm text-foreground placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary transition resize-y min-h-[80px]" />
           </div>
 
-          {/* History */}
+          {/* História */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <AlertCircle className="w-4 h-4 text-muted-foreground" />História / Descrição Detalhada
@@ -317,10 +321,16 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
             />
           </div>
 
-          {/* Seção de Tarefas */}
+          {/* Seção de Tarefas — recebe tasks, editTask e removeTask do hook compartilhado */}
           <div className="border-t border-border/60 pt-6 pb-6">
             <DemandTasksSection
               demand={demand}
+              tasks={demandTasks}
+              pendingTasks={pendingTasks}
+              completedTasks={completedTasks}
+              loading={tasksLoading}
+              onEditTask={editTask}
+              onRemoveTask={removeTask}
               onOpenTask={(t) => {
                 setSelectedTaskId(t.id);
                 setIsTaskDrawerOpen(true);
@@ -331,11 +341,11 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
         </div>
       </div>
 
-      {/* TaskDrawer aninhado — z-[55] fica acima do DemandDrawer (z-50) */}
+      {/* TaskDrawer aninhado */}
       <TaskDrawer
         isOpen={isTaskDrawerOpen}
         onClose={handleCloseTaskDrawer}
-        task={selectedTask}   // objeto VIVO derivado de demandTasks via useMemo
+        task={selectedTask}
         onUpdate={handleUpdateTask}
       />
     </>

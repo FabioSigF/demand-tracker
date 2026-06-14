@@ -1,7 +1,7 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, Timestamp,
-  or, and,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Task, TaskStatus } from '@/types/index';
@@ -11,141 +11,88 @@ const COLLECTION = 'tasks';
 
 // ── Helpers de data ───────────────────────────────────────────────────────────
 
-function todayStart(): Timestamp {
-  const d = new Date();
+export function dayStart(date: Date): Timestamp {
+  const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return Timestamp.fromDate(d);
 }
 
-function todayEnd(): Timestamp {
-  const d = new Date();
+export function dayEnd(date: Date): Timestamp {
+  const d = new Date(date);
   d.setHours(23, 59, 59, 999);
   return Timestamp.fromDate(d);
 }
 
-// ── Subscriptions ─────────────────────────────────────────────────────────────
+function generateOrder(existingOrders: number[]): number {
+  return existingOrders.length === 0 ? 1000 : Math.max(...existingOrders) + 1000;
+}
 
+// ── Subscription: tarefas Em Atendimento ─────────────────────────────────────
 /**
- * Carrega apenas tarefas relevantes para hoje:
- *   1. Criadas hoje
- *   2. Com prazo para hoje e ainda não concluídas
- *   3. Finalizadas hoje
+ * Carrega TODAS as tarefas ativas do usuário (Pendente + Em andamento).
+ * Sem filtro de data — tarefas em atendimento aparecem sempre,
+ * independentemente de quando foram criadas ou do prazo.
  *
- * Firestore não suporta OR composto em queries simples com índices diferentes,
- * então usamos três listeners separados e mesclamos no cliente.
- * O callback recebe a lista já deduplicada e ordenada por createdAt desc.
+ * Índice: userId ASC + status ASC + order ASC
  */
-export function subscribeToTodayTasks(
+export function subscribeToActiveTasks(
   userId: string,
   callback: (tasks: Task[]) => void
 ): () => void {
-  const start = todayStart();
-  const end   = todayEnd();
-  const map   = new Map<string, Task>();
-
-  const notify = () => {
-    const sorted = Array.from(map.values()).sort(
-      (a, b) => b.createdAt.toMillis() - a.createdAt.toMillis()
-    );
-    callback(sorted);
-  };
-
-  // 1. Criadas hoje
-  const unsubCreated = onSnapshot(
-    query(
-      collection(db, COLLECTION),
-      where('userId', '==', userId),
-      where('createdAt', '>=', start),
-      where('createdAt', '<=', end),
-      orderBy('createdAt', 'desc')
-    ),
-    (snap) => {
-      snap.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Task));
-      // Limpa do map as que foram removidas desta query
-      snap.docChanges().forEach(change => {
-        if (change.type === 'removed') map.delete(change.doc.id);
-      });
-      notify();
-    }
+  const q = query(
+    collection(db, COLLECTION),
+    where('userId', '==', userId),
+    where('status', 'in', ['Pendente', 'Em andamento']),
+    orderBy('order', 'asc')
   );
-
-  // 2. Com prazo hoje e pendentes
-  const unsubDue = onSnapshot(
-    query(
-      collection(db, COLLECTION),
-      where('userId', '==', userId),
-      where('dueDate', '>=', start),
-      where('dueDate', '<=', end),
-      where('status', '==', 'Pendente'),
-      orderBy('dueDate', 'asc')
-    ),
-    (snap) => {
-      snap.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Task));
-      snap.docChanges().forEach(change => {
-        if (change.type === 'removed') {
-          // Só remove se não estiver em outra query
-          const existing = map.get(change.doc.id);
-          if (existing) {
-            const createdToday =
-              existing.createdAt.toMillis() >= start.toMillis() &&
-              existing.createdAt.toMillis() <= end.toMillis();
-            const completedToday =
-              existing.completedAt &&
-              existing.completedAt.toMillis() >= start.toMillis() &&
-              existing.completedAt.toMillis() <= end.toMillis();
-            if (!createdToday && !completedToday) map.delete(change.doc.id);
-          }
-        }
-      });
-      notify();
-    }
-  );
-
-  // 3. Finalizadas hoje
-  const unsubDone = onSnapshot(
-    query(
-      collection(db, COLLECTION),
-      where('userId', '==', userId),
-      where('completedAt', '>=', start),
-      where('completedAt', '<=', end),
-      orderBy('completedAt', 'desc')
-    ),
-    (snap) => {
-      snap.docs.forEach(d => map.set(d.id, { id: d.id, ...d.data() } as Task));
-      snap.docChanges().forEach(change => {
-        if (change.type === 'removed') {
-          const existing = map.get(change.doc.id);
-          if (existing) {
-            const createdToday =
-              existing.createdAt.toMillis() >= start.toMillis() &&
-              existing.createdAt.toMillis() <= end.toMillis();
-            if (!createdToday) map.delete(change.doc.id);
-          }
-        }
-      });
-      notify();
-    }
-  );
-
-  return () => {
-    unsubCreated();
-    unsubDue();
-    unsubDone();
-  };
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
+  });
 }
 
+// ── Subscription: tarefas Finalizadas (com filtro de data) ───────────────────
 /**
- * Todas as tarefas de uma demanda específica (sem filtro de data).
- * Usado pelo DemandDrawer para listar tarefas vinculadas.
+ * Carrega tarefas finalizadas (Concluída + Cancelado) pelo campo completedAt.
+ * O filtro de data é aplicado na query do Firestore — sem carregamento
+ * desnecessário de dados.
+ *
+ * Índice: userId ASC + completedAt ASC (ou DESC)
+ */
+export function subscribeToDoneTasks(
+  userId: string,
+  date: Date,
+  callback: (tasks: Task[]) => void
+): () => void {
+  const start = dayStart(date);
+  const end   = dayEnd(date);
+
+  const q = query(
+    collection(db, COLLECTION),
+    where('userId',      '==', userId),
+    where('completedAt', '>=', start),
+    where('completedAt', '<=', end),
+    orderBy('completedAt', 'desc')
+  );
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
+  });
+}
+
+// ── Subscription: tarefas de uma demanda ─────────────────────────────────────
+/**
+ * userId incluído para respeitar as regras de segurança do Firestore.
+ * Índice: userId ASC + demandId ASC + order ASC
  */
 export function subscribeToTasksByDemand(
+  userId: string,
   demandId: string,
   callback: (tasks: Task[]) => void
 ): () => void {
   const q = query(
     collection(db, COLLECTION),
+    where('userId',   '==', userId),
     where('demandId', '==', demandId),
-    orderBy('createdAt', 'asc')
+    orderBy('order', 'asc')
   );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Task)));
@@ -162,13 +109,16 @@ export interface CreateTaskInput {
   title: string;
   description: string;
   dueDate?: Timestamp;
+  existingOrders?: number[];
 }
 
 export async function createTask(input: CreateTaskInput): Promise<string> {
+  const { existingOrders = [], ...data } = input;
   const now = Timestamp.now();
   const ref = await addDoc(collection(db, COLLECTION), {
-    ...input,
+    ...data,
     status: 'Pendente' as TaskStatus,
+    order:  generateOrder(existingOrders),
     createdAt: now,
     updatedAt: now,
   });
@@ -183,9 +133,9 @@ export async function updateTask(
     ...data,
     updatedAt: Timestamp.now(),
   };
-  if (data.status === 'Concluída') {
+  if (data.status === 'Concluída' || data.status === 'Cancelado') {
     updateData.completedAt = Timestamp.now();
-  } else if (data.status === 'Pendente') {
+  } else if (data.status === 'Pendente' || data.status === 'Em andamento') {
     updateData.completedAt = null;
   }
   await updateDoc(doc(db, COLLECTION, id), updateData);
@@ -193,4 +143,14 @@ export async function updateTask(
 
 export async function deleteTask(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id));
+}
+
+export async function reorderTasks(
+  updates: { id: string; order: number }[]
+): Promise<void> {
+  const batch = writeBatch(db);
+  updates.forEach(({ id, order }) => {
+    batch.update(doc(db, COLLECTION, id), { order, updatedAt: Timestamp.now() });
+  });
+  await batch.commit();
 }

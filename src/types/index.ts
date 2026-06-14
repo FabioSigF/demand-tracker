@@ -82,6 +82,7 @@ export interface Task {
   title: string;
   description: string;
   status: TaskStatus;
+  order: number;
   dueDate?: Timestamp;
   completedAt?: Timestamp;
   createdAt: Timestamp;

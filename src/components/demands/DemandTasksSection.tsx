@@ -1,6 +1,5 @@
 'use client';
 import { useState, useCallback } from 'react';
-import { useTasksByDemand } from '@/hooks/useTasks';
 import { createTask } from '@/services/tasks.service';
 import { Task } from '@/types/index';
 import { Demand } from '@/types';
@@ -14,13 +13,27 @@ import { useAuthContext } from '@/contexts/AuthContext';
 
 interface DemandTasksSectionProps {
   demand: Demand;
+  // Tasks recebidas do DemandDrawer (fonte única via useTasksByDemand)
+  tasks: Task[];
+  pendingTasks: Task[];
+  completedTasks: Task[];
+  loading: boolean;
+  onEditTask: (id: string, data: Partial<Omit<Task, 'id' | 'userId' | 'createdAt'>>) => Promise<void>;
+  onRemoveTask: (id: string) => Promise<void>;
   onOpenTask: (task: Task) => void;
 }
 
-export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionProps) {
+export function DemandTasksSection({
+  demand,
+  pendingTasks,
+  completedTasks,
+  loading,
+  onEditTask,
+  onRemoveTask,
+  onOpenTask,
+}: DemandTasksSectionProps) {
   const { user } = useAuthContext();
   const { confirm } = useConfirm();
-  const { pendingTasks, completedTasks, loading, editTask, removeTask } = useTasksByDemand(demand.id);
 
   const [showCompleted, setShowCompleted] = useState(false);
   const [isCreating,    setIsCreating]    = useState(false);
@@ -52,17 +65,18 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
     }
   };
 
-  const handleToggle = async (task: Task) => {
+  // Toggle: Pendente ↔ Concluída (atalho rápido no checkbox)
+  const handleToggle = useCallback(async (task: Task) => {
     const newStatus = task.status === 'Concluída' ? 'Pendente' : 'Concluída';
     try {
-      await editTask(task.id, { status: newStatus });
+      await onEditTask(task.id, { status: newStatus });
       toast.success(newStatus === 'Concluída' ? 'Tarefa concluída' : 'Tarefa reaberta');
     } catch {
       toast.error('Erro ao atualizar tarefa');
     }
-  };
+  }, [onEditTask]);
 
-  const handleDelete = async (task: Task) => {
+  const handleDelete = useCallback(async (task: Task) => {
     const confirmed = await confirm({
       title: 'Excluir tarefa',
       description: 'Esta ação não poderá ser desfeita.',
@@ -71,23 +85,23 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
     });
     if (!confirmed) return;
     try {
-      await removeTask(task.id);
+      await onRemoveTask(task.id);
       toast.success('Tarefa excluída');
     } catch {
       toast.error('Erro ao excluir tarefa');
     }
-  };
+  }, [confirm, onRemoveTask]);
 
   return (
     <div className="space-y-4">
-      {/* Header da seção */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <ListTodo className="w-4 h-4" />
           Tarefas
           {!loading && (
             <span className="bg-muted text-muted-foreground text-[10px] px-1.5 py-0.5 rounded-full font-normal ml-1">
-              {pendingTasks.length} pendente{pendingTasks.length !== 1 ? 's' : ''}
+              {pendingTasks.length} em atendimento
             </span>
           )}
         </label>
@@ -100,14 +114,17 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
         </button>
       </div>
 
-      {/* Formulário de criação inline */}
+      {/* Formulário inline */}
       {isCreating && (
         <div className="bg-muted/20 border border-border/60 rounded-xl p-3 space-y-2 animate-in fade-in duration-150">
           <input
             type="text"
             value={newTitle}
             onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setIsCreating(false); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleCreate();
+              if (e.key === 'Escape') { setIsCreating(false); setNewTitle(''); setNewDesc(''); }
+            }}
             placeholder="Título da tarefa..."
             autoFocus
             className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
@@ -146,11 +163,11 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
         </div>
       )}
 
-      {/* Tarefas pendentes */}
+      {/* Tarefas em atendimento */}
       {!loading && (
         <div className="space-y-1">
           {pendingTasks.length === 0 && !isCreating && (
-            <p className="text-xs text-muted-foreground italic py-2">Nenhuma tarefa pendente.</p>
+            <p className="text-xs text-muted-foreground italic py-2">Nenhuma tarefa em atendimento.</p>
           )}
           {pendingTasks.map(task => (
             <TaskItem
@@ -164,7 +181,7 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
         </div>
       )}
 
-      {/* Tarefas concluídas — colapsável */}
+      {/* Tarefas finalizadas — colapsável */}
       {!loading && completedTasks.length > 0 && (
         <div className="space-y-1">
           <button
@@ -172,9 +189,8 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
             className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition w-full text-left py-1"
           >
             {showCompleted ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            Concluídas ({completedTasks.length})
+            Finalizadas ({completedTasks.length})
           </button>
-
           {showCompleted && completedTasks.map(task => (
             <TaskItem
               key={task.id}
@@ -190,7 +206,8 @@ export function DemandTasksSection({ demand, onOpenTask }: DemandTasksSectionPro
   );
 }
 
-// ── Item individual de tarefa ─────────────────────────────────────────────────
+// ── Item individual ───────────────────────────────────────────────────────────
+
 interface TaskItemProps {
   task: Task;
   onOpen: (task: Task) => void;
@@ -199,13 +216,13 @@ interface TaskItemProps {
 }
 
 function TaskItem({ task, onOpen, onToggle, onDelete }: TaskItemProps) {
-  const isDone = task.status === 'Concluída';
+  const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
 
   return (
     <div className="flex items-start gap-2 group/item px-2 py-1.5 rounded-lg hover:bg-muted/30 transition">
-      {/* Toggle */}
       <button
         onClick={() => onToggle(task)}
+        title={isDone ? 'Reabrir tarefa' : 'Marcar como concluída'}
         className={`mt-0.5 shrink-0 transition ${
           isDone ? 'text-green-500 hover:text-muted-foreground' : 'text-muted-foreground/40 hover:text-green-500'
         }`}
@@ -213,7 +230,6 @@ function TaskItem({ task, onOpen, onToggle, onDelete }: TaskItemProps) {
         {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
       </button>
 
-      {/* Título clicável */}
       <button
         onClick={() => onOpen(task)}
         className={`flex-1 text-left text-sm leading-snug transition ${
@@ -222,13 +238,15 @@ function TaskItem({ task, onOpen, onToggle, onDelete }: TaskItemProps) {
       >
         {task.title || <span className="italic text-muted-foreground">Sem título</span>}
         {task.description && (
-          <span className="block text-xs text-muted-foreground font-normal mt-0.5 line-clamp-1 no-underline" style={{ textDecoration: 'none' }}>
+          <span
+            className="block text-xs text-muted-foreground font-normal mt-0.5 line-clamp-1"
+            style={{ textDecoration: 'none' }}
+          >
             {task.description}
           </span>
         )}
       </button>
 
-      {/* Delete */}
       <button
         onClick={() => onDelete(task)}
         className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition opacity-0 group-hover/item:opacity-100"

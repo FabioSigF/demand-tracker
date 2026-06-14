@@ -1,12 +1,13 @@
 'use client';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Task, TaskStatus } from '@/types/index';
 import { OperationBadge } from '../demands/OperationBadge';
-import { Trash2, Calendar, CheckCircle2, Circle } from 'lucide-react';
+import { GripVertical, Trash2, Calendar, CheckCircle2, Circle } from 'lucide-react';
 import { formatDateShort } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 
-// Mapa visual para os 4 status
 const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
   'Pendente':     { label: 'Pendente',     classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
   'Em andamento': { label: 'Em andamento', classes: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',         dot: 'bg-blue-500'   },
@@ -20,6 +21,7 @@ interface TaskRowProps {
   onOpenDetails: (task: Task) => void;
   onOpenDemand: (demandId: string) => void;
   onToggleStatus: (task: Task) => Promise<void>;
+  isDragEnabled: boolean;
 }
 
 export function TaskRow({
@@ -28,10 +30,28 @@ export function TaskRow({
   onOpenDetails,
   onOpenDemand,
   onToggleStatus,
+  isDragEnabled,
 }: TaskRowProps) {
   const { confirm } = useConfirm();
-  const isDone = task.status === 'Concluída';
+  const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
   const badge  = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
+
+  // ── Drag-and-drop — mesmo padrão do DemandRow ─────────────────────────────
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, disabled: !isDragEnabled });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 20 : 'auto',
+  };
 
   const handleDeleteRequest = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -68,10 +88,28 @@ export function TaskRow({
 
   return (
     <tr
+      ref={setNodeRef}
+      style={style}
       onClick={() => onOpenDetails(task)}
       className="border-b border-border/60 hover:bg-muted/15 transition-all text-sm group cursor-pointer"
     >
-      {/* Toggle — só alterna entre Pendente ↔ Concluída */}
+      {/* Drag Handle */}
+      <td className="p-2 w-8 text-center" onClick={e => e.stopPropagation()}>
+        {isDragEnabled ? (
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-1 rounded text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing hover:bg-muted transition shrink-0"
+            title="Arrastar para reordenar"
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+        ) : (
+          <div className="w-6" />
+        )}
+      </td>
+
+      {/* Toggle status */}
       <td className="p-2 w-10 text-center" onClick={e => e.stopPropagation()}>
         <button
           onClick={handleToggle}
@@ -82,10 +120,7 @@ export function TaskRow({
               : 'text-muted-foreground/40 hover:text-green-500'
           }`}
         >
-          {isDone
-            ? <CheckCircle2 className="w-4 h-4" />
-            : <Circle className="w-4 h-4" />
-          }
+          {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
         </button>
       </td>
 
@@ -104,7 +139,6 @@ export function TaskRow({
           >
             <span className="truncate">{task.demandTitle || 'Sem título'}</span>
           </button>
-
           <span className={`font-medium truncate block max-w-xs ${
             isDone ? 'line-through text-muted-foreground' : 'text-foreground'
           }`}>
@@ -122,8 +156,8 @@ export function TaskRow({
         </span>
       </td>
 
-      {/* Status — badge com 4 cores */}
-      <td className="p-2 w-32">
+      {/* Status */}
+      <td className="p-2 w-36">
         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${badge.classes}`}>
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${badge.dot}`} />
           {badge.label}
