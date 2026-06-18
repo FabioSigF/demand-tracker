@@ -12,6 +12,7 @@ import {
 import { TimerEntry, Operation } from '@/types';
 import { toast } from 'sonner';
 
+// ── Sync background timers from Firestore → React Context ────────────────────
 export function useTimerSync() {
   const { user } = useAuthContext();
   const { setTimer } = useTimerContext();
@@ -22,11 +23,12 @@ export function useTimerSync() {
       const active = timers.filter(t => t.status === 'running' || t.status === 'paused');
       active.forEach(t => {
         setTimer(t.demandId, {
-          timerId: t.id,
-          demandId: t.demandId,
-          startedAt: t.startedAt ? t.startedAt.toDate() : null,
+          timerId:     t.id,
+          demandId:    t.demandId,
+          demandTitle: t.demandTitle ?? '',   // ← propaga demandTitle
+          startedAt:   t.startedAt ? t.startedAt.toDate() : null,
           accumulated: t.durationSeconds,
-          status: t.status as 'running' | 'paused',
+          status:      t.status as 'running' | 'paused',
         });
       });
     });
@@ -34,7 +36,12 @@ export function useTimerSync() {
   }, [user, setTimer]);
 }
 
-export function useDemandTimer(demandId: string, operation: Operation) {
+// ── Timer de uma demanda específica ──────────────────────────────────────────
+export function useDemandTimer(
+  demandId: string,
+  operation: Operation,
+  demandTitle: string   // ← novo parâmetro
+) {
   const { user } = useAuthContext();
   const { activeTimers, setTimer, getElapsed } = useTimerContext();
   const activeTimer = activeTimers[demandId];
@@ -46,10 +53,12 @@ export function useDemandTimer(demandId: string, operation: Operation) {
         await resumeTimer(activeTimer.timerId);
         setTimer(demandId, { ...activeTimer, startedAt: new Date(), status: 'running' });
       } else {
-        const timerId = await startTimer(user.uid, demandId, operation);
+        // Passa demandTitle para ser salvo no documento do timer
+        const timerId = await startTimer(user.uid, demandId, demandTitle, operation);
         setTimer(demandId, {
           timerId,
           demandId,
+          demandTitle,
           startedAt: new Date(),
           accumulated: 0,
           status: 'running',
@@ -59,7 +68,7 @@ export function useDemandTimer(demandId: string, operation: Operation) {
     } catch {
       toast.error('Erro ao iniciar timer');
     }
-  }, [user, demandId, operation, activeTimer, setTimer]);
+  }, [user, demandId, demandTitle, operation, activeTimer, setTimer]);
 
   const pause = useCallback(async () => {
     if (!activeTimer) return;
@@ -88,9 +97,9 @@ export function useDemandTimer(demandId: string, operation: Operation) {
 
   return {
     isRunning: activeTimer?.status === 'running',
-    isPaused: activeTimer?.status === 'paused',
-    isActive: !!activeTimer,
-    elapsed: getElapsed(demandId),
+    isPaused:  activeTimer?.status === 'paused',
+    isActive:  !!activeTimer,
+    elapsed:   getElapsed(demandId),
     start,
     pause,
     stop,

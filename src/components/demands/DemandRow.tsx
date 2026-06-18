@@ -148,6 +148,7 @@ export function DemandRow({
           operation={demand.operation}
           onStopClick={onStopTimerClick}
           compact
+          demandTitle={demand.task || ''}
         />
       </td>
 

@@ -1,11 +1,10 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { getTimersForAnalytics } from '@/services/timers.service';
+import { subscribeToTimersForAnalytics } from '@/services/timers.service';
 import { TimerEntry, Operation } from '@/types';
 import {
   format,
-  isWithinInterval,
   startOfDay, endOfDay,
   startOfWeek, endOfWeek,
   startOfMonth, endOfMonth,
@@ -19,6 +18,13 @@ export interface AnalyticsFilters {
   period: PeriodFilter;
   from?: Date;
   to?: Date;
+}
+
+export interface TimeByDemand {
+  demandId: string;
+  demandTitle: string;
+  operation: Operation;
+  seconds: number;
 }
 
 function getPeriodRange(filters: AnalyticsFilters): { from: Date; to: Date } {
@@ -37,44 +43,104 @@ function getPeriodRange(filters: AnalyticsFilters): { from: Date; to: Date } {
 
 export function useAnalytics(filters: AnalyticsFilters) {
   const { user } = useAuthContext();
-  const [timers, setTimers] = useState<TimerEntry[]>([]);
+  const [timers,  setTimers]  = useState<TimerEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Calcula o range uma vez por mudança de filters
+  const range = useMemo(() => getPeriodRange(filters), [filters]);
+
+  /**
+   * Estabiliza from/to como números primitivos (ms).
+   * Números são comparados por valor — não por referência como objetos Date.
+   * Isso evita o loop: setTimers → re-render → novo Date() → useEffect dispara
+   * novamente → setTimers → ...
+   */
+  const fromMs = range.from.getTime();
+  const toMs   = range.to.getTime();
 
   useEffect(() => {
     if (!user) return;
-    getTimersForAnalytics(user.uid).then((data) => {
-      setTimers(data);
-      setLoading(false);
-    });
-  }, [user]);
+    setLoading(true);
 
-  const { from, to } = getPeriodRange(filters);
+    // Reconstrói Date a partir dos primitivos estáveis
+    const unsub = subscribeToTimersForAnalytics(
+      user.uid,
+      new Date(fromMs),
+      new Date(toMs),
+      (data) => {
+        setTimers(data);
+        setLoading(false);
+      }
+    );
+    return unsub;
+  // fromMs e toMs são number — React compara por valor, sem loop
+  }, [user, fromMs, toMs]);
 
-  const filtered = timers.filter(t => {
-    const date = t.startedAt ? t.startedAt.toDate() : null;
-    if (!date) return false;
-    return isWithinInterval(date, { start: from, end: to });
-  });
+  // ── Agrupamentos ──────────────────────────────────────────────────────────
 
-  const byOperation = filtered.reduce((acc, t) => {
-    acc[t.operation] = (acc[t.operation] || 0) + t.durationSeconds;
-    return acc;
-  }, {} as Record<Operation, number>);
+  const timeByOperation = useMemo(() => {
+    const byOp = timers.reduce((acc, t) => {
+      acc[t.operation] = (acc[t.operation] || 0) + t.durationSeconds;
+      return acc;
+    }, {} as Record<Operation, number>);
 
-  const timeByOperation = Object.entries(byOperation).map(([operation, seconds]) => ({
-    operation: operation as Operation,
-    seconds,
-  }));
+    return Object.entries(byOp).map(([operation, seconds]) => ({
+      operation: operation as Operation,
+      seconds,
+    }));
+  }, [timers]);
 
-  const byDay = filtered.reduce((acc, t) => {
-    if (!t.startedAt) return acc;
-    const key = format(t.startedAt.toDate(), 'dd/MM', { locale: ptBR });
-    acc[key] = (acc[key] || 0) + t.durationSeconds;
-    return acc;
-  }, {} as Record<string, number>);
+  const timeByDemand = useMemo((): TimeByDemand[] => {
+    const byDemand = timers.reduce((acc, t) => {
+      const key = t.demandId;
+      if (!acc[key]) {
+        acc[key] = {
+          demandId:    t.demandId,
+          demandTitle: t.demandTitle ?? t.demandId,
+          operation:   t.operation,
+          seconds:     0,
+        };
+      }
+      acc[key].seconds += t.durationSeconds;
+      return acc;
+    }, {} as Record<string, TimeByDemand>);
 
-  const timeByDay = Object.entries(byDay).map(([date, seconds]) => ({ date, seconds }));
-  const totalSeconds = filtered.reduce((acc, t) => acc + t.durationSeconds, 0);
+    return Object.values(byDemand).sort((a, b) => b.seconds - a.seconds);
+  }, [timers]);
 
-  return { timeByOperation, timeByDay, totalSeconds, loading, from, to };
+  const timeByDay = useMemo(() => {
+    const byDay = timers.reduce((acc, t) => {
+      if (!t.endedAt) return acc;
+      const key = format(t.endedAt.toDate(), 'dd/MM', { locale: ptBR });
+      acc[key] = (acc[key] || 0) + t.durationSeconds;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(byDay).map(([date, seconds]) => ({ date, seconds }));
+  }, [timers]);
+
+  const totalSeconds = useMemo(
+    () => timers.reduce((acc, t) => acc + t.durationSeconds, 0),
+    [timers]
+  );
+
+  const daysWithRecords = useMemo(() => {
+    const days = new Set(
+      timers
+        .filter(t => t.endedAt)
+        .map(t => format(t.endedAt!.toDate(), 'yyyy-MM-dd'))
+    );
+    return days.size;
+  }, [timers]);
+
+  return {
+    timeByOperation,
+    timeByDemand,
+    timeByDay,
+    totalSeconds,
+    daysWithRecords,
+    loading,
+    from: range.from,
+    to:   range.to,
+  };
 }

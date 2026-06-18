@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 interface ActiveTimer {
   timerId: string;
   demandId: string;
+  demandTitle: string;   // ← novo: salvo no start, passado ao stopTimer via Firestore
   startedAt: Date | null;
   accumulated: number;
   status: 'running' | 'paused';

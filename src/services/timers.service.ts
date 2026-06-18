@@ -1,12 +1,13 @@
 import {
   collection, doc, addDoc, updateDoc, query,
-  where, onSnapshot, Timestamp, orderBy, getDocs
+  where, onSnapshot, Timestamp, orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { TimerEntry, Operation } from '@/types';
 
 const COLLECTION = 'timers';
 
+// ── Subscription: timers ativos (usado pelo TimerContext) ─────────────────────
 export function subscribeToTimers(
   userId: string,
   callback: (timers: TimerEntry[]) => void
@@ -22,15 +23,51 @@ export function subscribeToTimers(
   });
 }
 
+// ── Subscription: timers finalizados para analytics (com filtro de data) ──────
+/**
+ * Substitui getTimersForAnalytics (getDocs) por onSnapshot com filtro de data.
+ * O Firestore filtra por endedAt no servidor — sem carregar todos os timers.
+ *
+ * Índice necessário: userId ASC + status ASC + endedAt ASC
+ */
+export function subscribeToTimersForAnalytics(
+  userId: string,
+  from: Date,
+  to: Date,
+  callback: (timers: TimerEntry[]) => void
+): () => void {
+  const q = query(
+    collection(db, COLLECTION),
+    where('userId',  '==', userId),
+    where('status',  '==', 'stopped'),
+    where('endedAt', '>=', Timestamp.fromDate(from)),
+    where('endedAt', '<=', Timestamp.fromDate(to)),
+    orderBy('endedAt', 'asc')
+  );
+  return onSnapshot(q, (snapshot) => {
+    const timers = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as TimerEntry[];
+    callback(timers);
+  });
+}
+
+// ── CRUD ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Agora recebe demandTitle para armazenar junto ao timer.
+ * Isso permite separar "Bradesco - Demanda A" de "Bradesco - Demanda B"
+ * nos gráficos de analytics sem precisar buscar a demanda depois.
+ */
 export async function startTimer(
   userId: string,
   demandId: string,
+  demandTitle: string,
   operation: Operation
 ): Promise<string> {
   const now = Timestamp.now();
   const ref = await addDoc(collection(db, COLLECTION), {
     userId,
     demandId,
+    demandTitle,
     operation,
     startedAt: now,
     durationSeconds: 0,
@@ -67,16 +104,4 @@ export async function stopTimer(
     durationSeconds: finalSeconds,
     status: 'stopped',
   });
-}
-
-export async function getTimersForAnalytics(
-  userId: string
-): Promise<TimerEntry[]> {
-  const q = query(
-    collection(db, COLLECTION),
-    where('userId', '==', userId),
-    where('status', '==', 'stopped')
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as TimerEntry[];
 }

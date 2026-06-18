@@ -98,3 +98,16 @@ export interface NotePage {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
+
+export interface TimerEntry {
+  id: string;
+  userId: string;
+  demandId: string;
+  demandTitle: string;   // ← novo: título da demanda no momento do start
+  operation: Operation;
+  startedAt: Timestamp | null;
+  endedAt?: Timestamp;
+  durationSeconds: number;
+  status: TimerStatus;
+  createdAt: Timestamp;
+}
