@@ -121,6 +121,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
     order:  generateOrder(existingOrders),
     createdAt: now,
     updatedAt: now,
+    dueDate: data.dueDate ? data.dueDate : now,
   });
   return ref.id;
 }

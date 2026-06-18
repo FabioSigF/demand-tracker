@@ -240,11 +240,10 @@ export function DemandsTable() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-              activeTab === 'active'
-                ? 'bg-violet-600/10 text-violet-500'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === 'active'
+              ? 'bg-violet-600/10 text-violet-500'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <Clock className="w-4 h-4" />
             Em Atendimento
@@ -254,11 +253,10 @@ export function DemandsTable() {
           </button>
           <button
             onClick={() => setActiveTab('done')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-              activeTab === 'done'
-                ? 'bg-violet-600/10 text-violet-500'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === 'done'
+              ? 'bg-violet-600/10 text-violet-500'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <CheckCircle className="w-4 h-4" />
             Finalizadas
@@ -296,7 +294,7 @@ export function DemandsTable() {
               onDragEnd={handleDragEnd}
             >
               <table className="w-full border-collapse text-left table-fixed min-w-[1000px]">
-                <thead className="bg-muted/30 border-b border-border sticky top-0 z-10 select-none">
+                <thead className="bg-muted border-b border-border sticky top-0 z-10 select-none">
                   <tr className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                     <th className="p-2 w-8"></th>
                     <th className="p-2 w-24">ID</th>
@@ -319,7 +317,9 @@ export function DemandsTable() {
                         <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </span>
                     </th>
-                    <th className="p-2 w-28">Prazo</th>
+                    <th className="p-2 w-28">
+                      {activeTab === 'done' ? 'Finalizado' : 'Prazo'}
+                    </th>
                     <th
                       onClick={() => handleSort('status')}
                       className="p-2 w-36 cursor-pointer hover:bg-muted/50 transition group"
@@ -351,6 +351,7 @@ export function DemandsTable() {
                         <DemandRow
                           key={demand.id}
                           demand={demand}
+                          showCompletedDate={activeTab === 'done'}
                           onDelete={removeDemand}
                           onOpenDetails={(d) => {
                             setSelectedDemandId(d.id);

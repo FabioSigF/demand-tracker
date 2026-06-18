@@ -42,13 +42,13 @@ export function TasksTable() {
   } = useTasks();
 
   const [activeTab, setActiveTab] = useState<'active' | 'done'>('active');
-  const [search,    setSearch]    = useState('');
+  const [search, setSearch] = useState('');
 
   // ── CreateTaskModal ───────────────────────────────────────────────────────
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // ── TaskDrawer ────────────────────────────────────────────────────────────
-  const [selectedTaskId,   setSelectedTaskId]   = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
 
   const selectedTask = useMemo(
@@ -63,7 +63,7 @@ export function TasksTable() {
   }, []);
 
   // ── DemandDrawer — lazy ───────────────────────────────────────────────────
-  const [selectedDemandId,   setSelectedDemandId]   = useState<string | null>(null);
+  const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
   const [isDemandDrawerOpen, setIsDemandDrawerOpen] = useState(false);
 
   const { demand: selectedDemand, editDemand } = useDemand(
@@ -103,9 +103,9 @@ export function TasksTable() {
     if (!over || active.id === over.id) return;
 
     const oldIndex = activeTasks.findIndex(t => t.id === active.id);
-    const newIndex  = activeTasks.findIndex(t => t.id === over.id);
+    const newIndex = activeTasks.findIndex(t => t.id === over.id);
     const reordered = arrayMove(activeTasks, oldIndex, newIndex);
-    const updates   = reordered.map((t, i) => ({ id: t.id, order: (i + 1) * 1000 }));
+    const updates = reordered.map((t, i) => ({ id: t.id, order: (i + 1) * 1000 }));
 
     try {
       await reorder(updates);
@@ -141,7 +141,7 @@ export function TasksTable() {
 
   const goToPrevDay = () => setDoneDate(d => subDays(d, 1));
   const goToNextDay = () => setDoneDate(d => addDays(d, 1));
-  const goToToday   = () => setDoneDate(new Date());
+  const goToToday = () => setDoneDate(new Date());
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 bg-background/50">
@@ -151,11 +151,10 @@ export function TasksTable() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-              activeTab === 'active'
-                ? 'bg-violet-600/10 text-violet-500'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === 'active'
+              ? 'bg-violet-600/10 text-violet-500'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <Clock className="w-4 h-4" />
             Em Atendimento
@@ -165,11 +164,10 @@ export function TasksTable() {
           </button>
           <button
             onClick={() => setActiveTab('done')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
-              activeTab === 'done'
-                ? 'bg-violet-600/10 text-violet-500'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === 'done'
+              ? 'bg-violet-600/10 text-violet-500'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             <CheckCircle className="w-4 h-4" />
             Finalizadas
@@ -278,7 +276,7 @@ export function TasksTable() {
               onDragEnd={handleDragEnd}
             >
               <table className="w-full border-collapse text-left table-fixed min-w-[1100px]">
-                <thead className="bg-muted/30 border-b border-border sticky top-0 z-10 select-none">
+                <thead className="bg-muted border-b border-border sticky top-0 z-10 select-none">
                   <tr className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                     <th className="p-2 w-8"></th>
                     <th className="p-2 w-10"></th>
@@ -286,7 +284,9 @@ export function TasksTable() {
                     <th className="p-2 min-w-[200px]">Tarefa</th>
                     <th className="p-2 min-w-[350px]">Descrição</th>
                     <th className="p-2 w-36">Status</th>
-                    <th className="p-2 w-24">Prazo</th>
+                    <th className="p-2 w-24">
+                      {activeTab === 'done' ? 'Finalizada' : 'Prazo'}
+                    </th>
                     <th className="p-2 w-24">Criado em</th>
                     <th className="p-2 w-12"></th>
                   </tr>
@@ -316,6 +316,7 @@ export function TasksTable() {
                           onOpenDemand={handleOpenDemand}
                           onToggleStatus={handleToggleStatus}
                           isDragEnabled={isDragEnabled}
+                          showCompletedAt={activeTab === 'done'}
                         />
                       ))}
                     </SortableContext>

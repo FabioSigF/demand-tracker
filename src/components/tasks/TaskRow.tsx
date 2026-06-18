@@ -9,10 +9,10 @@ import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 
 const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
-  'Pendente':     { label: 'Pendente',     classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
-  'Em andamento': { label: 'Em andamento', classes: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300',         dot: 'bg-blue-500'   },
-  'Cancelado':    { label: 'Cancelado',    classes: 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400',             dot: 'bg-red-500'    },
-  'Concluída':    { label: 'Concluída',    classes: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300',     dot: 'bg-green-500'  },
+  'Pendente': { label: 'Pendente', classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
+  'Em andamento': { label: 'Em andamento', classes: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
+  'Cancelado': { label: 'Cancelado', classes: 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400', dot: 'bg-red-500' },
+  'Concluída': { label: 'Concluída', classes: 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300', dot: 'bg-green-500' },
 };
 
 interface TaskRowProps {
@@ -22,6 +22,7 @@ interface TaskRowProps {
   onOpenDemand: (demandId: string) => void;
   onToggleStatus: (task: Task) => Promise<void>;
   isDragEnabled: boolean;
+  showCompletedAt?: boolean;
 }
 
 export function TaskRow({
@@ -31,10 +32,11 @@ export function TaskRow({
   onOpenDemand,
   onToggleStatus,
   isDragEnabled,
+  showCompletedAt
 }: TaskRowProps) {
   const { confirm } = useConfirm();
   const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
-  const badge  = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
+  const badge = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
 
   // ── Drag-and-drop — mesmo padrão do DemandRow ─────────────────────────────
   const {
@@ -114,11 +116,10 @@ export function TaskRow({
         <button
           onClick={handleToggle}
           title={isDone ? 'Reabrir tarefa' : 'Marcar como concluída'}
-          className={`p-1 rounded transition shrink-0 ${
-            isDone
+          className={`p-1 rounded transition shrink-0 ${isDone
               ? 'text-green-500 hover:text-muted-foreground'
               : 'text-muted-foreground/40 hover:text-green-500'
-          }`}
+            }`}
         >
           {isDone ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
         </button>
@@ -139,9 +140,8 @@ export function TaskRow({
           >
             <span className="truncate">{task.demandTitle || 'Sem título'}</span>
           </button>
-          <span className={`font-medium truncate block max-w-xs ${
-            isDone ? 'line-through text-muted-foreground' : 'text-foreground'
-          }`}>
+          <span className={`font-medium truncate block max-w-xs ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'
+            }`}>
             {task.title || <span className="italic text-muted-foreground">Sem título</span>}
           </span>
         </div>
@@ -149,9 +149,8 @@ export function TaskRow({
 
       {/* Descrição */}
       <td className="p-2 min-w-[350px]">
-        <span className={`text-xs leading-relaxed line-clamp-2 ${
-          isDone ? 'text-muted-foreground/60' : 'text-muted-foreground'
-        }`}>
+        <span className={`text-xs leading-relaxed line-clamp-2 ${isDone ? 'text-muted-foreground/60' : 'text-muted-foreground'
+          }`}>
           {task.description || <span className="italic">—</span>}
         </span>
       </td>
@@ -166,7 +165,16 @@ export function TaskRow({
 
       {/* Due Date */}
       <td className="p-2 w-24">
-        {task.dueDate ? (
+        {showCompletedAt ? (
+          task.completedAt ? (
+            <div className="flex items-center gap-1 text-xs text-foreground font-semibold tabular-nums">
+              <Calendar className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+              {formatDateShort(task.completedAt)}
+            </div>
+          ) : (
+            <span className="text-muted-foreground text-xs">—</span>
+          )
+        ) : task.dueDate ? (
           <div className="flex items-center gap-1 text-xs text-foreground font-semibold tabular-nums">
             <Calendar className="w-3 h-3 text-muted-foreground/60 shrink-0" />
             {formatDateShort(task.dueDate)}

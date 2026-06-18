@@ -17,6 +17,7 @@ interface DemandRowProps {
   onOpenDetails: (demand: Demand) => void;
   onStopTimerClick: (seconds: number, stopFn: (finalSeconds: number) => Promise<number>) => void;
   isDragEnabled: boolean;
+  showCompletedDate?: boolean;
 }
 
 export function DemandRow({
@@ -25,6 +26,7 @@ export function DemandRow({
   onOpenDetails,
   onStopTimerClick,
   isDragEnabled,
+  showCompletedDate
 }: DemandRowProps) {
   const { confirm } = useConfirm();
 
@@ -125,7 +127,11 @@ export function DemandRow({
       <td className="p-2 w-24">
         <div className="flex items-center gap-1 text-xs text-foreground font-semibold tabular-nums">
           <Calendar className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-          {demand.deadline ? formatDateShort(demand.deadline) : <span className="text-muted-foreground">—</span>}
+          {showCompletedDate ? (
+            demand.completedAt ? formatDateShort(demand.completedAt) : <span className="text-muted-foreground">—</span>
+          ) : (
+            demand.deadline ? formatDateShort(demand.deadline) : <span className="text-muted-foreground">—</span>
+          )}
         </div>
       </td>
 
