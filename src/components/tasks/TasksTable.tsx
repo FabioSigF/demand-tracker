@@ -20,9 +20,10 @@ import { useDemand } from '@/hooks/useDemand';
 import { TaskRow } from './TaskRow';
 import { TaskDrawer } from './TaskDrawer';
 import { CreateTaskModal } from './CreateTaskModal';
+import { TaskFilters, TaskFilterState } from './TaskFilters';
 import { DemandDrawer } from '../demands/DemandDrawer';
 import { Task } from '@/types/index';
-import { Search, X, CheckCircle, Clock, Plus, ListTodo, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle, Clock, Plus, ListTodo, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, addDays, subDays, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -42,13 +43,18 @@ export function TasksTable() {
   } = useTasks();
 
   const [activeTab, setActiveTab] = useState<'active' | 'done'>('active');
-  const [search, setSearch] = useState('');
+
+  // ── Filtros unificados ────────────────────────────────────────────────────
+  const [filters, setFilters] = useState<TaskFilterState>({
+    search:    '',
+    operation: 'Todos',
+  });
 
   // ── CreateTaskModal ───────────────────────────────────────────────────────
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // ── TaskDrawer ────────────────────────────────────────────────────────────
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskId,   setSelectedTaskId]   = useState<string | null>(null);
   const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
 
   const selectedTask = useMemo(
@@ -63,7 +69,7 @@ export function TasksTable() {
   }, []);
 
   // ── DemandDrawer — lazy ───────────────────────────────────────────────────
-  const [selectedDemandId, setSelectedDemandId] = useState<string | null>(null);
+  const [selectedDemandId,   setSelectedDemandId]   = useState<string | null>(null);
   const [isDemandDrawerOpen, setIsDemandDrawerOpen] = useState(false);
 
   const { demand: selectedDemand, editDemand } = useDemand(
@@ -92,7 +98,7 @@ export function TasksTable() {
     }
   }, [editTask]);
 
-  // ── Drag-and-drop — apenas na aba Em Atendimento ─────────────────────────
+  // ── Drag-and-drop ─────────────────────────────────────────────────────────
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -101,47 +107,70 @@ export function TasksTable() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-
     const oldIndex = activeTasks.findIndex(t => t.id === active.id);
-    const newIndex = activeTasks.findIndex(t => t.id === over.id);
+    const newIndex  = activeTasks.findIndex(t => t.id === over.id);
     const reordered = arrayMove(activeTasks, oldIndex, newIndex);
-    const updates = reordered.map((t, i) => ({ id: t.id, order: (i + 1) * 1000 }));
-
-    try {
-      await reorder(updates);
-    } catch {
-      toast.error('Erro ao reordenar tarefas');
-    }
+    const updates   = reordered.map((t, i) => ({ id: t.id, order: (i + 1) * 1000 }));
+    try { await reorder(updates); }
+    catch { toast.error('Erro ao reordenar tarefas'); }
   };
 
-  // Drag só funciona em Em Atendimento e sem busca ativa
-  const isDragEnabled = activeTab === 'active' && !search.trim();
+  // Drag desabilitado na aba Finalizadas e com filtros ativos
+  const isDragEnabled =
+    activeTab === 'active' &&
+    !filters.search.trim() &&
+    filters.operation === 'Todos' &&
+    !filters.startDate &&
+    !filters.endDate;
 
-  // ── Filtro de busca (aplicado sobre a lista já carregada do Firestore) ────
+  // ── Filtragem client-side ─────────────────────────────────────────────────
+  // As queries do Firestore já separam ativo/finalizado e filtram por data
+  // de completedAt (finalizadas) ou retornam tudo (ativas).
+  // Aqui aplicamos busca textual, operação e — para a aba ativa —
+  // filtro de datas por createdAt/dueDate.
   const currentList = activeTab === 'active' ? activeTasks : doneTasks;
 
   const filteredTasks = useMemo(() => {
-    if (!search.trim()) return currentList;
-    const s = search.toLowerCase();
-    return currentList.filter(t =>
-      t.title.toLowerCase().includes(s) ||
-      t.description.toLowerCase().includes(s) ||
-      t.demandId.toLowerCase().includes(s) ||
-      t.demandTitle.toLowerCase().includes(s) ||
-      t.operation.toLowerCase().includes(s)
-    );
-  }, [currentList, search]);
+    return currentList.filter(t => {
+      // Busca textual
+      if (filters.search.trim()) {
+        const s = filters.search.toLowerCase();
+        const match =
+          t.title.toLowerCase().includes(s) ||
+          t.description.toLowerCase().includes(s) ||
+          t.demandId.toLowerCase().includes(s) ||
+          t.demandTitle.toLowerCase().includes(s) ||
+          t.operation.toLowerCase().includes(s);
+        if (!match) return false;
+      }
+
+      // Operação
+      if (filters.operation !== 'Todos' && t.operation !== filters.operation) return false;
+
+      // Filtro de data por createdAt (aplicado em ambas as abas para
+      // refinamento adicional; nas finalizadas, a query já filtrou por
+      // completedAt, mas o usuário pode querer ver por data de criação)
+      if (filters.startDate) {
+        const from = new Date(filters.startDate + 'T00:00:00').getTime();
+        const ts   = t.createdAt?.toDate().getTime() ?? 0;
+        if (ts < from) return false;
+      }
+      if (filters.endDate) {
+        const to = new Date(filters.endDate + 'T23:59:59').getTime();
+        const ts  = t.createdAt?.toDate().getTime() ?? 0;
+        if (ts > to) return false;
+      }
+
+      return true;
+    });
+  }, [currentList, filters]);
 
   const loading = activeTab === 'active' ? loadingActive : loadingDone;
 
-  // ── Navegação de data para aba Finalizadas ────────────────────────────────
+  // ── Navegação de data (aba Finalizadas) ───────────────────────────────────
   const doneDateLabel = isToday(doneDate)
     ? 'Hoje'
     : format(doneDate, "dd 'de' MMMM", { locale: ptBR });
-
-  const goToPrevDay = () => setDoneDate(d => subDays(d, 1));
-  const goToNextDay = () => setDoneDate(d => addDays(d, 1));
-  const goToToday = () => setDoneDate(new Date());
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 bg-background/50">
@@ -151,10 +180,11 @@ export function TasksTable() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === 'active'
-              ? 'bg-violet-600/10 text-violet-500'
-              : 'text-muted-foreground hover:text-foreground'
-              }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
+              activeTab === 'active'
+                ? 'bg-violet-600/10 text-violet-500'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
             <Clock className="w-4 h-4" />
             Em Atendimento
@@ -164,10 +194,11 @@ export function TasksTable() {
           </button>
           <button
             onClick={() => setActiveTab('done')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${activeTab === 'done'
-              ? 'bg-violet-600/10 text-violet-500'
-              : 'text-muted-foreground hover:text-foreground'
-              }`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition ${
+              activeTab === 'done'
+                ? 'bg-violet-600/10 text-violet-500'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
             <CheckCircle className="w-4 h-4" />
             Finalizadas
@@ -186,84 +217,62 @@ export function TasksTable() {
         </button>
       </div>
 
-      {/* Search + filtro de data (data só aparece na aba Finalizadas) */}
+      {/* Filtros + navegador de data */}
       <div className="px-6 pt-4 shrink-0">
-        <div className="flex items-center gap-3 p-3 bg-card border border-border rounded-xl mb-4 shadow-sm">
-          {/* Busca textual */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Pesquisar por título, demanda, operação..."
-              className="w-full bg-muted/40 hover:bg-muted focus:bg-background border border-border rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
-            />
-          </div>
+        <TaskFilters filters={filters} onChange={setFilters} />
 
-          {/* Navegador de data — visível apenas na aba Finalizadas */}
-          {activeTab === 'done' && (
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={goToPrevDay}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
-                title="Dia anterior"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/40 border border-border rounded-lg text-sm font-medium text-foreground min-w-[120px] justify-center">
-                <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                <span>{doneDateLabel}</span>
-              </div>
-
-              <button
-                onClick={goToNextDay}
-                disabled={isToday(doneDate)}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition disabled:opacity-30 disabled:cursor-not-allowed"
-                title="Próximo dia"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-
-              {!isToday(doneDate) && (
-                <button
-                  onClick={goToToday}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-violet-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition"
-                >
-                  Hoje
-                </button>
-              )}
-
-              {/* Input de data para seleção direta */}
-              <div className="relative">
-                <input
-                  type="date"
-                  value={format(doneDate, 'yyyy-MM-dd')}
-                  max={format(new Date(), 'yyyy-MM-dd')}
-                  onChange={(e) => {
-                    if (e.target.value) setDoneDate(new Date(e.target.value + 'T12:00:00'));
-                  }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  title="Selecionar data"
-                />
-                <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                  <Calendar className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {search && (
+        {/* Navegador de data — só na aba Finalizadas */}
+        {activeTab === 'done' && (
+          <div className="flex items-center gap-1 mb-4 -mt-2">
             <button
-              onClick={() => setSearch('')}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg border border-border/80 transition shrink-0"
+              onClick={() => setDoneDate(d => subDays(d, 1))}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              title="Dia anterior"
             >
-              <X className="w-4 h-4" />
-              Limpar
+              <ChevronLeft className="w-4 h-4" />
             </button>
-          )}
-        </div>
+
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/40 border border-border rounded-lg text-sm font-medium text-foreground min-w-[130px] justify-center">
+              <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+              <span>{doneDateLabel}</span>
+            </div>
+
+            <button
+              onClick={() => setDoneDate(d => addDays(d, 1))}
+              disabled={isToday(doneDate)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Próximo dia"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {!isToday(doneDate) && (
+              <button
+                onClick={() => setDoneDate(new Date())}
+                className="px-2.5 py-1.5 text-xs font-semibold text-violet-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition"
+              >
+                Hoje
+              </button>
+            )}
+
+            {/* Seleção direta por calendário */}
+            <div className="relative">
+              <input
+                type="date"
+                value={format(doneDate, 'yyyy-MM-dd')}
+                max={format(new Date(), 'yyyy-MM-dd')}
+                onChange={(e) => {
+                  if (e.target.value) setDoneDate(new Date(e.target.value + 'T12:00:00'));
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                title="Selecionar data"
+              />
+              <button className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                <Calendar className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -329,21 +338,21 @@ export function TasksTable() {
                           </div>
                           <div className="space-y-1">
                             <p className="text-sm font-medium text-foreground">
-                              {search
-                                ? 'Nenhuma tarefa encontrada'
+                              {filters.search || filters.operation !== 'Todos' || filters.startDate || filters.endDate
+                                ? 'Nenhuma tarefa encontrada para esses filtros'
                                 : activeTab === 'active'
                                   ? 'Nenhuma tarefa em atendimento'
                                   : `Nenhuma tarefa finalizada em ${doneDateLabel.toLowerCase()}`}
                             </p>
                             <p className="text-xs text-muted-foreground max-w-xs">
-                              {search
-                                ? 'Tente ajustar os termos da busca.'
+                              {filters.search || filters.operation !== 'Todos' || filters.startDate || filters.endDate
+                                ? 'Tente ajustar os filtros.'
                                 : activeTab === 'active'
                                   ? 'Crie uma nova tarefa para começar.'
                                   : 'Navegue entre os dias para ver outras tarefas finalizadas.'}
                             </p>
                           </div>
-                          {!search && activeTab === 'active' && (
+                          {!filters.search && filters.operation === 'Todos' && !filters.startDate && !filters.endDate && activeTab === 'active' && (
                             <button
                               onClick={() => setIsCreateOpen(true)}
                               className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition shadow-lg shadow-violet-500/20"

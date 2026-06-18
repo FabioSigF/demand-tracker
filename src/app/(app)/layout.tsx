@@ -1,35 +1,49 @@
 'use client';
+
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import AuthGuard from '@/components/AuthGuard';
 import { useTimerSync } from '@/hooks/useTimer';
 import { useNotifications } from '@/hooks/useNotifications';
 import { usePathname } from 'next/navigation';
-import { NotepadWidget } from '@/components/notepad/NotepadWidget';
+import dynamic from 'next/dynamic';
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  // Sync background timers from firestore to React Context
+const NotepadWidget = dynamic(
+  () =>
+    import('@/components/notepad/NotepadWidget').then(
+      (mod) => mod.NotepadWidget
+    ),
+  {
+    ssr: false,
+  }
+);
+
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   useTimerSync();
 
-  // Initialize browser notification scheduler
   const { requestPermission } = useNotifications();
 
   const pathname = usePathname();
 
-  // Determine dynamic title for header
   let pageTitle = 'Dashboard';
-  if (pathname.startsWith('/demands')) pageTitle = 'Quadro de Demandas';
-  else if (pathname.startsWith('/analytics')) pageTitle = 'Indicadores & Relatórios';
-  else if (pathname.startsWith('/alarms')) pageTitle = 'Alarmes & Lembretes';
 
-  // Request browser notification permissions on mount
+  if (pathname.startsWith('/demands')) {
+    pageTitle = 'Quadro de Demandas';
+  } else if (pathname.startsWith('/analytics')) {
+    pageTitle = 'Indicadores & Relatórios';
+  } else if (pathname.startsWith('/alarms')) {
+    pageTitle = 'Alarmes & Lembretes';
+  }
+
   return (
     <AuthGuard>
       <div className="flex h-screen w-screen overflow-hidden bg-background">
-        {/* Sidebar */}
         <Sidebar />
 
-        {/* Content Wrapper */}
         <div className="flex flex-col flex-1 h-full min-w-0">
           <Header title={pageTitle} />
 
