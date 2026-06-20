@@ -43,7 +43,7 @@ export function Sidebar({ mobileOpen, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-30 md:relative flex flex-col border-r border-border bg-card transition-all duration-300 md:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 md:relative flex flex-col border-r border-border bg-card transition-all duration-300 md:translate-x-0',
           mobileOpen ? 'translate-x-0 w-64' : '-translate-x-full md:flex',
           collapsed ? 'md:w-16' : 'md:w-56'
         )}
