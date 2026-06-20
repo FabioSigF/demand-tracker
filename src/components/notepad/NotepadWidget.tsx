@@ -193,6 +193,17 @@ export function NotepadWidget() {
   const [isExpanded,  setIsExpanded]  = useState(false);
   const [activeId,    setActiveId]    = useState<string | null>(null);
   const [tabOffset,   setTabOffset]   = useState(0);
+  const [isMobile,    setIsMobile]    = useState(false);
+
+  // Monitor screen size
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Dimensões atuais
   const widgetW = isExpanded ? WIDGET_W_EXPANDED : WIDGET_W_NORMAL;
@@ -212,10 +223,10 @@ export function NotepadWidget() {
 
   // Ao mudar de tamanho (expandir/recolher), garante que não saia da tela
   useEffect(() => {
-    if (!isOpen || isMinimized) return;
+    if (!isOpen || isMinimized || isMobile) return;
     setDragPos(prev => clampPos(prev, widgetW, widgetH));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [widgetW, widgetH]);
+  }, [widgetW, widgetH, isMobile]);
 
   // Posição minimizada: sempre canto inferior direito (não arrastável)
   const miniPos = typeof window !== 'undefined'
@@ -224,6 +235,7 @@ export function NotepadWidget() {
 
   // Quando restaura, retoma a posição de quando estava aberto
   const handleMinimize = () => {
+    if (isMobile) return;
     if (isMinimized) {
       setIsMinimized(false);
       setDragPos(openPos);
@@ -248,12 +260,12 @@ export function NotepadWidget() {
   // Redimensionamento de janela: reclampeia posição atual
   useEffect(() => {
     const onResize = () => {
-      if (!isOpen || isMinimized) return;
+      if (!isOpen || isMinimized || isMobile) return;
       setDragPos(prev => clampPos(prev, widgetW, widgetH));
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [isOpen, isMinimized, widgetW, widgetH, setDragPos]);
+  }, [isOpen, isMinimized, widgetW, widgetH, setDragPos, isMobile]);
 
   // ── Páginas ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -308,42 +320,47 @@ export function NotepadWidget() {
         <div
           style={{
             position: 'fixed',
-            left:   effectivePos.x,
-            top:    effectivePos.y,
-            width:  isMinimized ? WIDGET_W_NORMAL : widgetW,
-            height: isMinimized ? 'auto' : widgetH,
+            left:   isMobile ? 0 : effectivePos.x,
+            top:    isMobile ? 0 : effectivePos.y,
+            width:  isMobile ? '100vw' : (isMinimized ? WIDGET_W_NORMAL : widgetW),
+            height: isMobile ? '100dvh' : (isMinimized ? 'auto' : widgetH),
             zIndex: 70,
+            borderRadius: isMobile ? '0px' : '1rem',
           }}
-          className="bg-popover border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          className="bg-popover border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         >
-          {/* Titlebar — arrastável */}
+          {/* Titlebar — arrastável apenas no desktop */}
           <div
-            onMouseDown={!isMinimized ? onMouseDown : undefined}
+            onMouseDown={(!isMinimized && !isMobile) ? onMouseDown : undefined}
             className={[
               'flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30 shrink-0',
-              !isMinimized ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-default',
+              (!isMinimized && !isMobile) ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-default select-none',
             ].join(' ')}
           >
             <NotebookPen className="w-3.5 h-3.5 text-violet-500 shrink-0 pointer-events-none" />
             <span
               className="text-xs font-semibold text-foreground flex-1 pointer-events-none"
-              onDoubleClick={handleMinimize}
-              title="Duplo clique para minimizar/restaurar"
+              onDoubleClick={!isMobile ? handleMinimize : undefined}
+              title={!isMobile ? "Duplo clique para minimizar/restaurar" : undefined}
             >
               Bloco de Notas
             </span>
 
             <div className="flex items-center gap-1">
-              <button onClick={handleMinimize} title={isMinimized ? 'Restaurar' : 'Minimizar'}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                <Minus className="w-3.5 h-3.5" />
-              </button>
+              {!isMobile && (
+                <>
+                  <button onClick={handleMinimize} title={isMinimized ? 'Restaurar' : 'Minimizar'}
+                    className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
 
-              {!isMinimized && (
-                <button onClick={() => setIsExpanded(v => !v)} title={isExpanded ? 'Reduzir' : 'Expandir'}
-                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                  {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                </button>
+                  {!isMinimized && (
+                    <button onClick={() => setIsExpanded(v => !v)} title={isExpanded ? 'Reduzir' : 'Expandir'}
+                      className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                      {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </>
               )}
 
               <button onClick={handleClose} title="Fechar"

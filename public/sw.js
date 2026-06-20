@@ -1,6 +1,5 @@
-const CACHE_NAME = 'demand-tracker-cache-v1';
+const CACHE_NAME = 'demand-tracker-cache-v2';
 const ASSETS_TO_CACHE = [
-  '/',
   '/manifest.json',
   '/icon-192.svg',
   '/icon-512.svg',
@@ -31,13 +30,28 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass Firebase and Auth API calls directly through without caching
+  // CRITICAL: DO NOT intercept page navigations or redirects (which causes ERR_FAILED on Next.js 307 redirects)
+  // Let network handle page layouts, redirects, non-GETs and API calls
   if (
+    event.request.method !== 'GET' ||
+    event.request.mode === 'navigate' ||
     event.request.url.includes('firestore.googleapis.com') ||
     event.request.url.includes('identitytoolkit.googleapis.com') ||
     event.request.url.includes('firebase') ||
-    event.request.method !== 'GET'
+    event.request.url.startsWith('chrome-extension:')
   ) {
+    return;
+  }
+
+  // Cache only static assets for speed optimization
+  const isStaticAsset = 
+    event.request.url.includes('/_next/static/') ||
+    event.request.url.endsWith('.svg') ||
+    event.request.url.endsWith('.png') ||
+    event.request.url.endsWith('.woff2') ||
+    event.request.url.includes('/fonts/');
+
+  if (!isStaticAsset) {
     return;
   }
 
@@ -47,28 +61,14 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
       return fetch(event.request).then((response) => {
-        // Cache static Next.js internal files and asset resources
-        if (
-          response.status === 200 &&
-          (event.request.url.includes('/_next/static/') ||
-            event.request.url.includes('.svg') ||
-            event.request.url.includes('.png') ||
-            event.request.url.includes('.woff2') ||
-            event.request.url.includes('/fonts/'))
-        ) {
+        if (response.status === 200) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
           });
         }
         return response;
-      }).catch(() => {
-        // Fallback to home if page is missing and user is offline
-        if (event.request.mode === 'navigate') {
-          return caches.match('/');
-        }
-        return null;
-      });
+      }).catch(() => null);
     })
   );
 });
