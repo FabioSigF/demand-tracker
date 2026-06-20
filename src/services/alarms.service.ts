@@ -30,13 +30,50 @@ export async function createAlarm(
     userId,
     ...data,
     fired: false,
+    isTriggered: false,
+    isAcknowledged: false,
     createdAt: Timestamp.now(),
   });
   return ref.id;
 }
 
 export async function markAlarmFired(alarmId: string): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, alarmId), { fired: true });
+  await updateDoc(doc(db, COLLECTION, alarmId), {
+    fired: true,
+    isTriggered: true,
+    triggeredAt: Timestamp.now(),
+  });
+}
+
+export async function triggerAlarm(alarmId: string): Promise<void> {
+  await markAlarmFired(alarmId);
+}
+
+export async function acknowledgeAlarm(alarmId: string): Promise<void> {
+  await updateDoc(doc(db, COLLECTION, alarmId), {
+    isAcknowledged: true,
+    acknowledgedAt: Timestamp.now(),
+  });
+}
+
+export async function snoozeAlarm(
+  alarmId: string,
+  durationMinutes: number,
+  currentScheduledAt: Timestamp
+): Promise<void> {
+  const currentMs = currentScheduledAt.toDate().getTime();
+  // Recalculates based on now or the scheduled time
+  const nowMs = Date.now();
+  const baseMs = Math.max(currentMs, nowMs);
+  const nextMs = baseMs + durationMinutes * 60000;
+  const nextScheduled = Timestamp.fromMillis(nextMs);
+
+  await updateDoc(doc(db, COLLECTION, alarmId), {
+    scheduledAt: nextScheduled,
+    fired: false,
+    isTriggered: false,
+    isAcknowledged: false,
+  });
 }
 
 export async function deleteAlarm(alarmId: string): Promise<void> {

@@ -4,7 +4,6 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import AuthGuard from '@/components/AuthGuard';
 import { useTimerSync } from '@/hooks/useTimer';
-import { useNotifications } from '@/hooks/useNotifications';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
@@ -19,6 +18,7 @@ const NotepadWidget = dynamic(
 );
 
 import { useState } from 'react';
+import { GlobalAlarmManager } from '@/components/alarms/GlobalAlarmManager';
 
 export default function AppLayout({
   children,
@@ -26,8 +26,6 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   useTimerSync();
-
-  const { requestPermission } = useNotifications();
 
   const pathname = usePathname();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -55,6 +53,7 @@ export default function AppLayout({
           </main>
 
           <NotepadWidget />
+          <GlobalAlarmManager />
         </div>
       </div>
     </AuthGuard>

@@ -1,12 +1,14 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, ChevronDown, Menu } from 'lucide-react';
+import { LogOut, User, ChevronDown, Menu, Bell } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { GlobalSearch } from '@/components/demands/GlobalSearch';
 import { getInitials } from '@/lib/utils';
 import { toast } from 'sonner';
+import Link from 'next/link';
+import { useAlarms } from '@/hooks/useAlarms';
 
 interface HeaderProps {
   title: string;
@@ -15,6 +17,7 @@ interface HeaderProps {
 
 export function Header({ title, onMenuClick }: HeaderProps) {
   const { user, signOutUser } = useAuthContext();
+  const { alarms } = useAlarms();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -56,6 +59,21 @@ export function Header({ title, onMenuClick }: HeaderProps) {
 
       <div className="flex items-center gap-3">
         <GlobalSearch />
+        
+        {/* Permanent Alarm Indicator */}
+        <Link
+          href="/alarms"
+          className="relative p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition shrink-0"
+          title="Cronograma de Alarmes"
+        >
+          <Bell className="w-4.5 h-4.5" />
+          {alarms.filter(a => a.isTriggered && !a.isAcknowledged).length > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white animate-pulse">
+              {alarms.filter(a => a.isTriggered && !a.isAcknowledged).length}
+            </span>
+          )}
+        </Link>
+
         <ThemeToggle />
 
         {/* User menu */}

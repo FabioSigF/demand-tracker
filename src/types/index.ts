@@ -59,6 +59,10 @@ export interface Alarm {
   description?: string;
   scheduledAt: Timestamp;
   fired: boolean;
+  isTriggered?: boolean;
+  isAcknowledged?: boolean;
+  triggeredAt?: Timestamp;
+  acknowledgedAt?: Timestamp;
   createdAt: Timestamp;
 }
 
