@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { loginSchema, LoginInput } from '@/lib/validations';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { Eye, EyeOff, BarChart3, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, BarChart3, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
@@ -96,6 +96,16 @@ export default function LoginPage() {
           {loading ? 'Entrando...' : 'Entrar'}
         </button>
       </form>
+
+      <div className="mt-6 pt-6 border-t border-slate-700/50 text-center">
+        <Link 
+          href="/download" 
+          className="text-xs font-semibold text-slate-400 hover:text-slate-200 inline-flex items-center gap-1.5 transition"
+        >
+          <Smartphone className="w-3.5 h-3.5 text-violet-400" />
+          Instalar versão mobile (PWA)
+        </Link>
+      </div>
     </div>
   );
 }

@@ -54,7 +54,7 @@ export function GlobalSearch() {
   };
 
   return (
-    <div className="relative w-full max-w-[280px] sm:max-w-[320px]" ref={containerRef}>
+    <div className="relative w-full max-w-[130px] sm:max-w-[280px] md:max-w-[320px]" ref={containerRef}>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
@@ -65,7 +65,7 @@ export function GlobalSearch() {
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
-          placeholder="Pesquisar ID, Operação, Tarefa..."
+          placeholder="Pesquisar..."
           className="w-full bg-muted/60 hover:bg-muted focus:bg-background border border-border rounded-lg pl-9 pr-4 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
         />
         {loading && (

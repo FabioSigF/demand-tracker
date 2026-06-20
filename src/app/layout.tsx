@@ -6,12 +6,19 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { TimerProvider } from '@/contexts/TimerContext';
 import { Toaster } from 'sonner';
 import { ConfirmModalProvider } from '@/contexts/ConfirmModalContext';
+import { PWARegister } from '@/components/PWARegister';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Demand Tracker',
   description: 'Plataforma de controle de demandas para Analistas de Negócio',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Demand Tracker',
+  },
 };
 
 export default function RootLayout({
@@ -27,6 +34,7 @@ export default function RootLayout({
             <TimerProvider>
               <ConfirmModalProvider>
                 {children}
+                <PWARegister />
                 <Toaster richColors position="bottom-right" />
               </ConfirmModalProvider>
             </TimerProvider>

@@ -18,6 +18,8 @@ const NotepadWidget = dynamic(
   }
 );
 
+import { useState } from 'react';
+
 export default function AppLayout({
   children,
 }: {
@@ -28,6 +30,7 @@ export default function AppLayout({
   const { requestPermission } = useNotifications();
 
   const pathname = usePathname();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   let pageTitle = 'Dashboard';
 
@@ -42,10 +45,10 @@ export default function AppLayout({
   return (
     <AuthGuard>
       <div className="flex h-screen w-screen overflow-hidden bg-background">
-        <Sidebar />
+        <Sidebar mobileOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
 
         <div className="flex flex-col flex-1 h-full min-w-0">
-          <Header title={pageTitle} />
+          <Header title={pageTitle} onMenuClick={() => setMobileSidebarOpen(true)} />
 
           <main className="flex-1 overflow-y-auto min-h-0 bg-background/30">
             {children}

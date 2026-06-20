@@ -18,6 +18,7 @@ import {
 } from '@dnd-kit/sortable';
 import { useDemands } from '@/hooks/useDemands';
 import { DemandRow } from './DemandRow';
+import { DemandMobileCard } from './DemandMobileCard';
 import { DemandFilters, FilterState } from './DemandFilters';
 import { DemandDrawer } from './DemandDrawer';
 import { TimerAdjustModal } from '../timer/TimerAdjustModal';
@@ -285,8 +286,9 @@ export function DemandsTable() {
       </div>
 
       {/* Table Container */}
-      <div className="flex-1 overflow-auto px-6 pb-6 min-h-0">
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 min-h-0">
+        {/* Desktop View */}
+        <div className="hidden md:flex bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex-col">
           <div className="flex-1 overflow-auto">
             <DndContext
               sensors={sensors}
@@ -373,6 +375,33 @@ export function DemandsTable() {
               </table>
             </DndContext>
           </div>
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden space-y-4 pb-20">
+          {loading ? (
+            <div className="p-8 text-center text-muted-foreground bg-card border border-border rounded-xl">
+              Carregando demandas...
+            </div>
+          ) : sortedDemands.length > 0 ? (
+            sortedDemands.map((demand) => (
+              <DemandMobileCard
+                key={demand.id}
+                demand={demand}
+                showCompletedDate={activeTab === 'done'}
+                onDelete={removeDemand}
+                onOpenDetails={(d) => {
+                  setSelectedDemandId(d.id);
+                  setIsDrawerOpen(true);
+                }}
+                onStopTimerClick={handleStopTimer}
+              />
+            ))
+          ) : (
+            <div className="p-8 text-center text-muted-foreground bg-card border border-border rounded-xl">
+              Nenhuma demanda localizada nesta visualização.
+            </div>
+          )}
         </div>
       </div>
 

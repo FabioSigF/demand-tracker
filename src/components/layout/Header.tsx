@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, User, ChevronDown } from 'lucide-react';
+import { LogOut, User, ChevronDown, Menu } from 'lucide-react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { GlobalSearch } from '@/components/demands/GlobalSearch';
@@ -10,9 +10,10 @@ import { toast } from 'sonner';
 
 interface HeaderProps {
   title: string;
+  onMenuClick?: () => void;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, onMenuClick }: HeaderProps) {
   const { user, signOutUser } = useAuthContext();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -41,8 +42,17 @@ export function Header({ title }: HeaderProps) {
   const initials = user ? getInitials(user.email ?? '', user.displayName ?? undefined) : 'U';
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-card/50 backdrop-blur-sm shrink-0">
-      <h1 className="text-base font-semibold text-foreground">{title}</h1>
+    <header className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border bg-card/50 backdrop-blur-sm shrink-0">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onMenuClick}
+          className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent md:hidden transition"
+          title="Abrir menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+        <h1 className="text-sm sm:text-base font-semibold text-foreground truncate max-w-[150px] sm:max-w-none">{title}</h1>
+      </div>
 
       <div className="flex items-center gap-3">
         <GlobalSearch />

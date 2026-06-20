@@ -18,6 +18,7 @@ import {
 import { useTasks } from '@/hooks/useTasks';
 import { useDemand } from '@/hooks/useDemand';
 import { TaskRow } from './TaskRow';
+import { TaskMobileCard } from './TaskMobileCard';
 import { TaskDrawer } from './TaskDrawer';
 import { CreateTaskModal } from './CreateTaskModal';
 import { TaskFilters, TaskFilterState } from './TaskFilters';
@@ -275,9 +276,10 @@ export function TasksTable() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto px-6 pb-6 min-h-0">
-        <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col">
+      {/* Table & Mobile view */}
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 min-h-0">
+        {/* Desktop View */}
+        <div className="hidden lg:flex bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex-col">
           <div className="flex-1 overflow-auto">
             <DndContext
               sensors={sensors}
@@ -369,6 +371,57 @@ export function TasksTable() {
               </table>
             </DndContext>
           </div>
+        </div>
+
+        {/* Mobile View */}
+        <div className="lg:hidden space-y-4 pb-20">
+          {loading ? (
+            <div className="p-8 text-center text-muted-foreground bg-card border border-border rounded-xl">
+              Carregando tarefas...
+            </div>
+          ) : filteredTasks.length > 0 ? (
+            filteredTasks.map(task => (
+              <TaskMobileCard
+                key={task.id}
+                task={task}
+                onDelete={removeTask}
+                onOpenDetails={(t) => {
+                  setSelectedTaskId(t.id);
+                  setIsTaskDrawerOpen(true);
+                }}
+                onOpenDemand={handleOpenDemand}
+                onToggleStatus={handleToggleStatus}
+                showCompletedAt={activeTab === 'done'}
+              />
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 gap-4 text-center bg-card border border-border rounded-xl p-6">
+              <div className="w-10 h-10 rounded-xl bg-muted/40 flex items-center justify-center">
+                <ListTodo className="w-5 h-5 text-muted-foreground/40" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Nenhuma tarefa encontrada
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {filters.search || filters.operation !== 'Todos' || filters.startDate || filters.endDate
+                    ? 'Ajuste os filtros de pesquisa.'
+                    : activeTab === 'active'
+                      ? 'Crie uma nova tarefa para começar.'
+                      : `Nenhuma tarefa concluída em ${doneDateLabel.toLowerCase()}.`}
+                </p>
+              </div>
+              {!filters.search && filters.operation === 'Todos' && !filters.startDate && !filters.endDate && activeTab === 'active' && (
+                <button
+                  onClick={() => setIsCreateOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  Nova Tarefa
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
