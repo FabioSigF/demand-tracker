@@ -10,6 +10,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Smartphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -20,6 +21,7 @@ const navItems = [
   { href: '/tasks',     label: 'Tarefas',   icon: ClipboardCheck },
   { href: '/analytics', label: 'Analytics', icon: PieChart },
   { href: '/alarms',    label: 'Alarmes',   icon: Bell },
+  { href: '/download',  label: 'Instalar App', icon: Smartphone },
 ];
 
 interface SidebarProps {

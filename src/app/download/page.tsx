@@ -6,8 +6,10 @@ import {
   CheckCircle, Laptop, ShieldCheck, Zap
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 export default function DownloadPage() {
+  const { user } = useAuthContext();
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
@@ -65,15 +67,15 @@ export default function DownloadPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex flex-col p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background text-foreground flex flex-col p-4 sm:p-6 md:p-8">
       {/* Header */}
       <header className="max-w-4xl mx-auto w-full flex items-center justify-between py-4 mb-6">
         <Link 
-          href="/login" 
+          href={user ? '/dashboard' : '/login'} 
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-          Voltar para o Login
+          {user ? 'Voltar para o Dashboard' : 'Voltar para o Login'}
         </Link>
         <ThemeToggle />
       </header>
@@ -130,7 +132,7 @@ export default function DownloadPage() {
           
           {/* iOS Card */}
           <div className={`bg-card border rounded-2xl p-5 space-y-4 shadow-sm transition ${
-            deviceType === 'ios' ? 'border-violet-500/50 ring-1 ring-violet-500/20 bg-violet-950/5' : 'border-border'
+            deviceType === 'ios' ? 'border-violet-500/50 ring-1 ring-violet-500/20 dark:bg-violet-950/20 bg-violet-50/50' : 'border-border'
           }`}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-blue-600/10 text-blue-500 rounded-xl flex items-center justify-center shrink-0 font-bold">
@@ -149,7 +151,7 @@ export default function DownloadPage() {
 
           {/* Android Card */}
           <div className={`bg-card border rounded-2xl p-5 space-y-4 shadow-sm transition ${
-            deviceType === 'android' ? 'border-violet-500/50 ring-1 ring-violet-500/20 bg-violet-950/5' : 'border-border'
+            deviceType === 'android' ? 'border-violet-500/50 ring-1 ring-violet-500/20 dark:bg-violet-950/20 bg-violet-50/50' : 'border-border'
           }`}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-green-600/10 text-green-500 rounded-xl flex items-center justify-center shrink-0 font-bold">
@@ -168,7 +170,7 @@ export default function DownloadPage() {
 
           {/* Desktop Card */}
           <div className={`bg-card border rounded-2xl p-5 space-y-4 shadow-sm transition ${
-            deviceType === 'desktop' ? 'border-violet-500/50 ring-1 ring-violet-500/20 bg-violet-950/5' : 'border-border'
+            deviceType === 'desktop' ? 'border-violet-500/50 ring-1 ring-violet-500/20 dark:bg-violet-950/20 bg-violet-50/50' : 'border-border'
           }`}>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-violet-600/10 text-violet-500 rounded-xl flex items-center justify-center shrink-0 font-bold">

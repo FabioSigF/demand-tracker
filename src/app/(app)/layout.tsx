@@ -38,6 +38,8 @@ export default function AppLayout({
     pageTitle = 'Indicadores & Relatórios';
   } else if (pathname.startsWith('/alarms')) {
     pageTitle = 'Alarmes & Lembretes';
+  } else if (pathname.startsWith('/download')) {
+    pageTitle = 'Instalar Aplicativo (PWA)';
   }
 
   return (
