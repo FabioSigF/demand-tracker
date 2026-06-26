@@ -3,7 +3,7 @@ import {
   where, onSnapshot, Timestamp, orderBy,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { TimerEntry, Operation } from '@/types';
+import { TimerEntry } from '@/types';
 
 const COLLECTION = 'timers';
 
@@ -61,7 +61,7 @@ export async function startTimer(
   userId: string,
   demandId: string,
   demandTitle: string,
-  operation: Operation
+  operation: string
 ): Promise<string> {
   const now = Timestamp.now();
   const ref = await addDoc(collection(db, COLLECTION), {

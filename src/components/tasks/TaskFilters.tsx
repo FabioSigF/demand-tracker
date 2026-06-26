@@ -1,13 +1,12 @@
 'use client';
-import { Operation } from '@/types';
-import { OPERATIONS } from '@/lib/constants';
+import { useOperations } from '@/hooks/useOperations';
 import { Search, X, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface TaskFilterState {
   search: string;
-  operation: Operation | 'Todos';
+  operation: string;
   startDate?: string;
   endDate?: string;
 }
@@ -18,6 +17,7 @@ interface TaskFiltersProps {
 }
 
 export function TaskFilters({ filters, onChange }: TaskFiltersProps) {
+  const { operations } = useOperations();
   const [showDates, setShowDates] = useState(false);
 
   const handleUpdate = (updates: Partial<TaskFilterState>) => {
@@ -58,13 +58,13 @@ export function TaskFilters({ filters, onChange }: TaskFiltersProps) {
           <span className="text-muted-foreground font-medium">Operação:</span>
           <select
             value={filters.operation}
-            onChange={(e) => handleUpdate({ operation: e.target.value as Operation | 'Todos' })}
+            onChange={(e) => handleUpdate({ operation: e.target.value })}
             className="bg-muted/40 hover:bg-muted border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition font-medium"
           >
-            <option value="Todos">Todas</option>
-            {OPERATIONS.map(op => (
-              <option key={op} value={op}>{op}</option>
-            ))}
+             <option value="Todos">Todas</option>
+             {operations.map(op => (
+               <option key={op.id} value={op.name}>{op.name}</option>
+             ))}
           </select>
         </div>
 

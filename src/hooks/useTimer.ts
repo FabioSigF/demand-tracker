@@ -9,7 +9,7 @@ import {
   stopTimer,
   subscribeToTimers,
 } from '@/services/timers.service';
-import { TimerEntry, Operation } from '@/types';
+import { TimerEntry } from '@/types';
 import { toast } from 'sonner';
 
 // ── Sync background timers from Firestore → React Context ────────────────────
@@ -39,8 +39,8 @@ export function useTimerSync() {
 // ── Timer de uma demanda específica ──────────────────────────────────────────
 export function useDemandTimer(
   demandId: string,
-  operation: Operation,
-  demandTitle: string   // ← novo parâmetro
+  operation: string,
+  demandTitle: string
 ) {
   const { user } = useAuthContext();
   const { activeTimers, setTimer, getElapsed } = useTimerContext();

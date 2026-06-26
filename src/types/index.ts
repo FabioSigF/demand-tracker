@@ -1,15 +1,14 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type Operation =
-  | 'Cielo'
-  | 'Onfly'
-  | 'Bradesco'
-  | 'Luxottica'
-  | 'Claro'
-  | 'Banese'
-  | 'Banco BV'
-  | 'Pluxee'
-  | 'Outro';
+export interface Operation {
+  id: string;
+  name: string;
+  color?: string;
+  userId: string | null;
+  isDefault: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
 
 export type Status = 'Pendente' | 'Em andamento' | 'Concluído' | 'Cancelado';
 
@@ -27,7 +26,7 @@ export interface Demand {
   id: string;
   userId: string;
   demandId: string;
-  operation: Operation;
+  operation: string;
   task: string;
   startDate: Timestamp;
   deadline: Timestamp;
@@ -40,17 +39,7 @@ export interface Demand {
   updatedAt: Timestamp;
 }
 
-export interface TimerEntry {
-  id: string;
-  userId: string;
-  demandId: string;
-  operation: Operation;
-  startedAt: Timestamp | null;
-  endedAt?: Timestamp;
-  durationSeconds: number;
-  status: TimerStatus;
-  createdAt: Timestamp;
-}
+// Note: Duplicate TimerEntry is removed and defined fully below
 
 export interface Alarm {
   id: string;
@@ -67,7 +56,7 @@ export interface Alarm {
 }
 
 export interface AnalyticsData {
-  timeByOperation: { operation: Operation; seconds: number }[];
+  timeByOperation: { operation: string; seconds: number }[];
   timeByDay: { date: string; seconds: number }[];
   totalSeconds: number;
   inProgressCount: number;
@@ -82,7 +71,7 @@ export interface Task {
   userId: string;
   demandId: string;
   demandTitle: string;
-  operation: Operation;
+  operation: string;
   title: string;
   description: string;
   status: TaskStatus;
@@ -108,10 +97,33 @@ export interface TimerEntry {
   userId: string;
   demandId: string;
   demandTitle: string;   // ← novo: título da demanda no momento do start
-  operation: Operation;
+  operation: string;
   startedAt: Timestamp | null;
   endedAt?: Timestamp;
   durationSeconds: number;
   status: TimerStatus;
   createdAt: Timestamp;
+}
+
+export type DocumentationCategory =
+  | 'sistema'
+  | 'processo'
+  | 'requisito'
+  | 'regra_negocio'
+  | 'procedimento'
+  | 'troubleshooting'
+  | 'integracao'
+  | 'geral';
+
+export interface DocumentationPage {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  category: DocumentationCategory;
+  operationIds: string[];
+  relatedDemandIds?: string[];
+  order: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }

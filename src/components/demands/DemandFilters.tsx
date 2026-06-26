@@ -1,13 +1,14 @@
 'use client';
-import { Operation, Status } from '@/types';
-import { OPERATIONS, STATUSES } from '@/lib/constants';
+import { Status } from '@/types';
+import { STATUSES } from '@/lib/constants';
+import { useOperations } from '@/hooks/useOperations';
 import { Search, X, Calendar, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface FilterState {
   search: string;
-  operation: Operation | 'Todos';
+  operation: string;
   status: Status | 'Todos';
   onlyDelayed: boolean;
   startDate?: string;
@@ -21,6 +22,7 @@ interface DemandFiltersProps {
 }
 
 export function DemandFilters({ filters, onChange, showStatusFilter = true }: DemandFiltersProps) {
+  const { operations } = useOperations();
   const [showDates, setShowDates] = useState(false);
 
   const handleUpdate = (updates: Partial<FilterState>) => {
@@ -67,12 +69,12 @@ export function DemandFilters({ filters, onChange, showStatusFilter = true }: De
           <span className="text-muted-foreground font-medium">Operação:</span>
           <select
             value={filters.operation}
-            onChange={(e) => handleUpdate({ operation: e.target.value as Operation | 'Todos' })}
+            onChange={(e) => handleUpdate({ operation: e.target.value })}
             className="bg-muted/40 hover:bg-muted border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition font-medium"
           >
             <option value="Todos">Todas</option>
-            {OPERATIONS.map(op => (
-              <option key={op} value={op}>{op}</option>
+            {operations.map(op => (
+              <option key={op.id} value={op.name}>{op.name}</option>
             ))}
           </select>
         </div>

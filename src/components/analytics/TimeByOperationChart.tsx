@@ -1,11 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { Operation } from '@/types';
 import { formatDuration } from '@/lib/utils';
 
 interface ChartData {
-  operation: Operation;
+  operation: string;
   seconds: number;
 }
 

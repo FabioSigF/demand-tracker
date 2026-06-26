@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { subscribeToTimersForAnalytics } from '@/services/timers.service';
-import { TimerEntry, Operation } from '@/types';
+import { TimerEntry } from '@/types';
 import {
   format,
   startOfDay, endOfDay,
@@ -23,7 +23,7 @@ export interface AnalyticsFilters {
 export interface TimeByDemand {
   demandId: string;
   demandTitle: string;
-  operation: Operation;
+  operation: string;
   seconds: number;
 }
 
@@ -82,10 +82,10 @@ export function useAnalytics(filters: AnalyticsFilters) {
     const byOp = timers.reduce((acc, t) => {
       acc[t.operation] = (acc[t.operation] || 0) + t.durationSeconds;
       return acc;
-    }, {} as Record<Operation, number>);
+    }, {} as Record<string, number>);
 
     return Object.entries(byOp).map(([operation, seconds]) => ({
-      operation: operation as Operation,
+      operation,
       seconds,
     }));
   }, [timers]);

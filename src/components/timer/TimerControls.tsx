@@ -1,13 +1,12 @@
 'use client';
 import { Play, Pause, Square } from 'lucide-react';
 import { useDemandTimer } from '@/hooks/useTimer';
-import { Operation } from '@/types';
 import { TimerDisplay } from './TimerDisplay';
 
 interface TimerControlsProps {
   demandId: string;
-  demandTitle: string;    // ← novo: título da demanda para salvar no timer
-  operation: Operation;
+  demandTitle: string;
+  operation: string;
   onStopClick: (seconds: number, stopFn: (finalSeconds: number) => Promise<number>) => void;
   compact?: boolean;
 }

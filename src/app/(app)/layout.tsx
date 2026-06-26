@@ -38,8 +38,12 @@ export default function AppLayout({
     pageTitle = 'Indicadores & Relatórios';
   } else if (pathname.startsWith('/alarms')) {
     pageTitle = 'Alarmes & Lembretes';
+  } else if (pathname.startsWith('/settings')) {
+    pageTitle = 'Configurações';
   } else if (pathname.startsWith('/download')) {
     pageTitle = 'Instalar Aplicativo (PWA)';
+  } else if (pathname.startsWith('/documentation')) {
+    pageTitle = 'Base de Conhecimento';
   }
 
   return (

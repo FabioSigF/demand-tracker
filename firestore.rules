@@ -45,5 +45,23 @@ service cloud.firestore {
       allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
       allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
     }
+
+    // Rules for Documentation pages
+    match /documentation_pages/{pageId} {
+      allow read, update, delete: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+    }
+
+    // Rules for Operations
+    match /operations/{operationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        (request.resource.data.userId == null && request.resource.data.isDefault == true)
+      );
+      allow update, delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        resource.data.isDefault == false;
+    }
   }
 }

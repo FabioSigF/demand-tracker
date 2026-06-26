@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { OperationsProvider } from '@/contexts/OperationsContext';
 import { TimerProvider } from '@/contexts/TimerContext';
 import { Toaster } from 'sonner';
 import { ConfirmModalProvider } from '@/contexts/ConfirmModalContext';
@@ -31,13 +32,15 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
           <AuthProvider>
-            <TimerProvider>
-              <ConfirmModalProvider>
-                {children}
-                <PWARegister />
-                <Toaster richColors position="bottom-right" />
-              </ConfirmModalProvider>
-            </TimerProvider>
+            <OperationsProvider>
+              <TimerProvider>
+                <ConfirmModalProvider>
+                  {children}
+                  <PWARegister />
+                  <Toaster richColors position="bottom-right" />
+                </ConfirmModalProvider>
+              </TimerProvider>
+            </OperationsProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

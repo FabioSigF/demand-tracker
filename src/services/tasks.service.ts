@@ -5,7 +5,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Task, TaskStatus } from '@/types/index';
-import { Operation } from '@/types';
+// Operation is typed as string below
 
 const COLLECTION = 'tasks';
 
@@ -105,7 +105,7 @@ export interface CreateTaskInput {
   userId: string;
   demandId: string;
   demandTitle: string;
-  operation: Operation;
+  operation: string;
   title: string;
   description: string;
   dueDate?: Timestamp;

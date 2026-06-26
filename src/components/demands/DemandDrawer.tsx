@@ -1,15 +1,18 @@
 'use client';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Demand, Operation, Status } from '@/types';
+import { Demand, Status } from '@/types';
 import { Task } from '@/types/index';
-import { OPERATIONS, STATUSES } from '@/lib/constants';
+import { STATUSES } from '@/lib/constants';
+import { useOperations } from '@/hooks/useOperations';
 import { TiptapEditor } from '../editor/TiptapEditor';
-import { X, Calendar, AlertCircle, RefreshCw, FileText, CheckCircle } from 'lucide-react';
+import { X, Calendar, AlertCircle, RefreshCw, FileText, CheckCircle, BookOpen } from 'lucide-react';
 import { fromTimestamp, toTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import { DemandTasksSection } from './DemandTasksSection';
 import { TaskDrawer } from '../tasks/TaskDrawer';
 import { useTasksByDemand } from '@/hooks/useTasks';
+import { useDocumentation } from '@/hooks/useDocumentation';
+import Link from 'next/link';
 
 interface DemandDrawerProps {
   demand: Demand | null;
@@ -21,12 +24,13 @@ interface DemandDrawerProps {
 type TextFields = { task: string; notes: string; history: string };
 
 export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawerProps) {
+  const { operations } = useOperations();
   // ── Estado de UI da demanda ───────────────────────────────────────────────
   const [demandId,     setDemandId]     = useState('');
   const [task,         setTask]         = useState('');
   const [notes,        setNotes]        = useState('');
   const [history,      setHistory]      = useState('');
-  const [operation,    setOperation]    = useState<Operation>('Outro');
+  const [operation,    setOperation]    = useState<string>('Outro');
   const [status,       setStatus]       = useState<Status>('Pendente');
   const [startDateStr, setStartDateStr] = useState('');
   const [deadlineStr,  setDeadlineStr]  = useState('');
@@ -50,6 +54,48 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
     () => demandTasks.find(t => t.id === selectedTaskId) ?? null,
     [demandTasks, selectedTaskId]
   );
+
+  const { pages: docPages, editPage: editDocPage } = useDocumentation();
+
+  const linkedDocs = useMemo(() => {
+    if (!demand?.id) return [];
+    return docPages.filter(p => p.relatedDemandIds?.includes(demand.id));
+  }, [docPages, demand?.id]);
+
+  const unlinkedDocs = useMemo(() => {
+    if (!demand?.id) return [];
+    return docPages.filter(p => !p.relatedDemandIds?.includes(demand.id));
+  }, [docPages, demand?.id]);
+
+  const handleLinkDoc = useCallback(async (docId: string) => {
+    if (!docId || !demand?.id) return;
+    const doc = docPages.find(p => p.id === docId);
+    if (!doc) return;
+    const current = doc.relatedDemandIds || [];
+    try {
+      await editDocPage(docId, {
+        relatedDemandIds: [...current, demand.id]
+      });
+      toast.success('Documento vinculado com sucesso');
+    } catch {
+      toast.error('Erro ao vincular documento');
+    }
+  }, [docPages, editDocPage, demand?.id]);
+
+  const handleUnlinkDoc = useCallback(async (docId: string) => {
+    if (!demand?.id) return;
+    const doc = docPages.find(p => p.id === docId);
+    if (!doc) return;
+    const current = doc.relatedDemandIds || [];
+    try {
+      await editDocPage(docId, {
+        relatedDemandIds: current.filter(id => id !== demand.id)
+      });
+      toast.success('Vínculo removido');
+    } catch {
+      toast.error('Erro ao remover vínculo');
+    }
+  }, [docPages, editDocPage, demand?.id]);
 
   const handleUpdateTask = useCallback(async (
     id: string,
@@ -272,9 +318,9 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
           <div className="grid grid-cols-2 gap-4 bg-muted/20 border border-border/50 p-4 rounded-xl">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Operação</label>
-              <select value={operation} onChange={(e) => { const val = e.target.value as Operation; setOperation(val); handleFieldChange({ operation: val }); }}
+              <select value={operation} onChange={(e) => { const val = e.target.value; setOperation(val); handleFieldChange({ operation: val }); }}
                 className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium">
-                {OPERATIONS.map(op => <option key={op} value={op}>{op}</option>)}
+                {operations.map(op => <option key={op.id} value={op.name}>{op.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -336,6 +382,65 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
                 setIsTaskDrawerOpen(true);
               }}
             />
+          </div>
+
+          {/* Documentações Relacionadas */}
+          <div className="border-t border-border/60 pt-6 pb-6 space-y-3">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <BookOpen className="w-4 h-4 text-muted-foreground" />
+              Documentos de Apoio
+            </h3>
+
+            {/* List of linked docs */}
+            <div className="space-y-2">
+              {linkedDocs.map(doc => (
+                <div key={doc.id} className="flex items-center justify-between p-2.5 rounded-xl border border-border bg-muted/10 hover:bg-muted/20 transition-all">
+                  <Link
+                    href={`/documentation?open=${doc.id}`}
+                    onClick={handleClose}
+                    className="flex items-center gap-2 text-xs font-semibold text-primary hover:underline truncate pr-4"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                    <span className="truncate">{doc.title}</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => handleUnlinkDoc(doc.id)}
+                    className="p-1 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                    title="Remover vínculo"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {linkedDocs.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">
+                  Nenhum documento vinculado a esta demanda.
+                </p>
+              )}
+            </div>
+
+            {/* Link new doc select */}
+            {unlinkedDocs.length > 0 && (
+              <div className="flex gap-2 items-center pt-1">
+                <select
+                  onChange={(e) => {
+                    handleLinkDoc(e.target.value);
+                    e.target.value = '';
+                  }}
+                  defaultValue=""
+                  className="flex-1 bg-background border border-border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                >
+                  <option value="" disabled>Vincular documento existente...</option>
+                  {unlinkedDocs.map(doc => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
         </div>

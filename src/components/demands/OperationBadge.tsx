@@ -1,15 +1,17 @@
 'use client';
-import { Operation } from '@/types';
-import { OPERATION_COLORS } from '@/lib/constants';
+import { useOperations } from '@/hooks/useOperations';
+import { getOperationColor } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 interface OperationBadgeProps {
-  operation: Operation;
+  operation: string;
   className?: string;
 }
 
 export function OperationBadge({ operation, className }: OperationBadgeProps) {
-  const colors = OPERATION_COLORS[operation] || OPERATION_COLORS.Outro;
+  const { operations } = useOperations();
+  const op = operations.find(o => o.name.toLowerCase() === operation.toLowerCase());
+  const colors = getOperationColor(operation, op?.color);
   
   return (
     <span

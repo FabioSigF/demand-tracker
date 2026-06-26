@@ -4,7 +4,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Demand, Operation, Status } from '@/types';
+import { Demand, Status } from '@/types';
 import { generateOrder } from '@/lib/utils';
 
 const COLLECTION = 'demands';
@@ -42,7 +42,7 @@ export async function createDemand(
   const newDemand = {
     userId,
     demandId: '',
-    operation: 'Outro' as Operation,
+    operation: 'Outro',
     task: '',
     startDate: now,
     deadline: now,
