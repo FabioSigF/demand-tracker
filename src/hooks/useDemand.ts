@@ -12,7 +12,8 @@ import { updateDemand } from '@/services/demands.service';
  */
 export function useDemand(demandId: string | null) {
   const [demand, setDemand] = useState<Demand | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Começa carregando quando já há ID, evitando um render "não encontrada" antes do 1º snapshot
+  const [loading, setLoading] = useState(demandId !== null);
 
   useEffect(() => {
     if (!demandId) {

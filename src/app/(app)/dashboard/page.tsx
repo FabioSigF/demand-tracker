@@ -37,7 +37,7 @@ export default function DashboardPage() {
           title="Em Atendimento"
           value={loadingDemands ? '...' : activeDemands.length}
           icon={Clock}
-          description="Pendentes ou Em andamento"
+          description="Backlog, Pendentes, Em andamento ou Aguardando cliente"
           iconColorClass="text-blue-500 bg-blue-600/10"
         />
 

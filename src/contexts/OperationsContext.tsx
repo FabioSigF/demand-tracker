@@ -26,8 +26,10 @@ export function OperationsProvider({ children }: { children: React.ReactNode }) 
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If user is null, we still subscribe to get default operations (userId = null)
-    const unsubscribe = subscribeToOperations(user?.uid ?? null, (data) => {
+    // As regras do Firestore exigem login para ler operações (inclusive as padrão),
+    // então só assina depois que o usuário estiver autenticado.
+    if (!user) return;
+    const unsubscribe = subscribeToOperations(user.uid, (data) => {
       setOperations(data);
       setLoading(false);
     });
@@ -87,7 +89,7 @@ export function OperationsProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <OperationsContext.Provider value={{ operations, loading, addOperation, editOperation, removeOperation }}>
+    <OperationsContext.Provider value={{ operations: user ? operations : [], loading, addOperation, editOperation, removeOperation }}>
       {children}
     </OperationsContext.Provider>
   );

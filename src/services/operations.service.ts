@@ -22,13 +22,18 @@ export function subscribeToOperations(
     orderBy('name', 'asc')
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const operations = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Operation[];
-    callback(operations);
-  });
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const operations = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Operation[];
+      callback(operations);
+    },
+    // Ex.: logout enquanto a assinatura ainda está ativa → permission-denied
+    (error) => console.warn('[subscribeToOperations]', error.code)
+  );
 }
 
 export async function createOperation(

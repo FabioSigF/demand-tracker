@@ -6,7 +6,8 @@ import { OperationBadge } from './OperationBadge';
 import { StatusBadge } from './StatusBadge';
 import { DelayedBadge } from './DelayedBadge';
 import { TimerControls } from '../timer/TimerControls';
-import { Trash2, Calendar, Eye, ListTodo, ChevronDown, User, Circle } from 'lucide-react';
+import { Trash2, Calendar, Eye, ListTodo, ChevronDown, User, Circle, Maximize2 } from 'lucide-react';
+import Link from 'next/link';
 import { formatDateShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
@@ -190,6 +191,13 @@ export function DemandMobileCard({
           >
             <Eye className="w-4 h-4" />
           </button>
+          <Link
+            href={`/demands/${demand.id}`}
+            title="Abrir em tela cheia"
+            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </Link>
           <button
             onClick={handleDeleteRequest}
             title="Excluir Demanda"

@@ -8,7 +8,8 @@ import { OperationBadge } from './OperationBadge';
 import { StatusBadge } from './StatusBadge';
 import { DelayedBadge } from './DelayedBadge';
 import { TimerControls } from '../timer/TimerControls';
-import { GripVertical, Trash2, Calendar, ListTodo, ChevronDown, User, Circle } from 'lucide-react';
+import { GripVertical, Trash2, Calendar, ListTodo, ChevronDown, User, Circle, Maximize2 } from 'lucide-react';
+import Link from 'next/link';
 import { formatDateShort } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
@@ -288,7 +289,14 @@ export function DemandRow({
       </td>
 
       {/* Actions */}
-      <td className="p-2 w-12 text-right" onClick={e => e.stopPropagation()}>
+      <td className="p-2 w-20 text-right whitespace-nowrap" onClick={e => e.stopPropagation()}>
+        <Link
+          href={`/demands/${demand.id}`}
+          title="Abrir em tela cheia"
+          className="inline-flex p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+        >
+          <Maximize2 className="w-4 h-4" />
+        </Link>
         <button
           onClick={handleDeleteRequest}
           title="Excluir demanda"

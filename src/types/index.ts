@@ -10,7 +10,13 @@ export interface Operation {
   updatedAt: Timestamp;
 }
 
-export type Status = 'Pendente' | 'Em andamento' | 'Concluído' | 'Cancelado';
+export type Status =
+  | 'Backlog'
+  | 'Pendente'
+  | 'Em andamento'
+  | 'Aguardando cliente'
+  | 'Concluído'
+  | 'Cancelado';
 
 export type TimerStatus = 'running' | 'paused' | 'stopped';
 

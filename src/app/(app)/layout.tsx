@@ -32,7 +32,9 @@ export default function AppLayout({
 
   let pageTitle = 'Dashboard';
 
-  if (pathname.startsWith('/demands')) {
+  if (pathname.startsWith('/demands/')) {
+    pageTitle = 'Detalhes da Demanda';
+  } else if (pathname.startsWith('/demands')) {
     pageTitle = 'Quadro de Demandas';
   } else if (pathname.startsWith('/analytics')) {
     pageTitle = 'Indicadores & Relatórios';
