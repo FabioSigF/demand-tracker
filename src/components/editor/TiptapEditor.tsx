@@ -27,12 +27,15 @@ interface TiptapEditorProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Ocupa toda a altura do container pai; a barra fica fixa e o texto rola por dentro */
+  fill?: boolean;
 }
 
 export function TiptapEditor({
   value,
   onChange,
   placeholder = 'Escreva a história ou detalhes da demanda...',
+  fill = false,
 }: TiptapEditorProps) {
 
   const editor = useEditor({
@@ -74,8 +77,10 @@ export function TiptapEditor({
 
     editorProps: {
       attributes: {
-        class:
+        class: cn(
           'prose dark:prose-invert max-w-none px-4 py-3 min-h-[220px] focus:outline-none text-sm text-foreground bg-muted/10 border border-border/80 border-t-0 rounded-b-xl',
+          fill && 'flex-1'
+        ),
       },
     },
   });
@@ -125,8 +130,8 @@ export function TiptapEditor({
   if (!editor) return null;
 
   return (
-    <div className="flex flex-col rounded-xl border border-border overflow-hidden">
-      <div className="flex flex-wrap items-center gap-1 p-1.5 bg-muted/30 border-b border-border select-none">
+    <div className={cn('flex flex-col rounded-xl border border-border overflow-hidden', fill && 'h-full min-h-0')}>
+      <div className="flex flex-wrap items-center gap-1 p-1.5 bg-muted/30 border-b border-border select-none shrink-0">
 
         <button
           type="button"
@@ -233,7 +238,10 @@ export function TiptapEditor({
         </button>
       </div>
 
-      <EditorContent editor={editor} />
+      <EditorContent
+        editor={editor}
+        className={cn(fill && 'flex-1 min-h-0 overflow-y-auto flex flex-col')}
+      />
     </div>
   );
 }

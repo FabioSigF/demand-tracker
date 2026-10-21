@@ -7,7 +7,6 @@ import { Task } from '@/types/index';
 import { OperationBadge } from './OperationBadge';
 import { StatusBadge } from './StatusBadge';
 import { DelayedBadge } from './DelayedBadge';
-import { TimerControls } from '../timer/TimerControls';
 import { GripVertical, Trash2, Calendar, ListTodo, ChevronDown, User, Circle, Maximize2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatDateShort } from '@/lib/utils';
@@ -21,7 +20,6 @@ interface DemandRowProps {
   onToggleTaskStatus?: (task: Task) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onOpenDetails: (demand: Demand) => void;
-  onStopTimerClick: (seconds: number, stopFn: (finalSeconds: number) => Promise<number>) => void;
   isDragEnabled: boolean;
   showCompletedDate?: boolean;
 }
@@ -33,7 +31,6 @@ export function DemandRow({
   onToggleTaskStatus,
   onDelete,
   onOpenDetails,
-  onStopTimerClick,
   isDragEnabled,
   showCompletedDate
 }: DemandRowProps) {
@@ -73,10 +70,6 @@ export function DemandRow({
     } catch {
       toast.error('Erro ao excluir demanda');
     }
-  };
-
-  const handleTimerClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // impede abrir o drawer ao interagir com o timer
   };
 
   return (
@@ -275,17 +268,6 @@ export function DemandRow({
         <span className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
           {demand.notes || <span className="italic">—</span>}
         </span>
-      </td>
-
-      {/* Timer — compacto, não propaga clique */}
-      <td className="p-2 w-32 shrink-0" onClick={handleTimerClick}>
-        <TimerControls
-          demandId={demand.id}
-          operation={demand.operation}
-          onStopClick={onStopTimerClick}
-          compact
-          demandTitle={demand.task || ''}
-        />
       </td>
 
       {/* Actions */}

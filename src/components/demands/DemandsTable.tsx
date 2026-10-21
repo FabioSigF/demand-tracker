@@ -373,7 +373,6 @@ export function DemandsTable() {
                       </span>
                     </th>
                     <th className="p-2 min-w-[400px]">Anotações Rápidas</th>
-                    <th className="p-2 w-30">Tempo</th>
                     <th className="p-2 w-20 text-right">Ações</th>
                   </tr>
                 </thead>
@@ -381,7 +380,7 @@ export function DemandsTable() {
                 <tbody className="divide-y divide-border/60">
                   {loading ? (
                     <tr>
-                      <td colSpan={11} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
                         Carregando demandas...
                       </td>
                     </tr>
@@ -407,14 +406,13 @@ export function DemandsTable() {
                             setSelectedDemandId(d.id);
                             setIsDrawerOpen(true);
                           }}
-                          onStopTimerClick={handleStopTimer}
                           isDragEnabled={isDragEnabled}
                         />
                       ))}
                     </SortableContext>
                   ) : (
                     <tr>
-                      <td colSpan={11} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
                         Nenhuma demanda localizada nesta visualização.
                       </td>
                     </tr>

@@ -7,7 +7,7 @@ import { TiptapEditor } from '@/components/editor/TiptapEditor';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 import {
   NotebookPen, X, Plus, ChevronLeft, ChevronRight,
-  Minus, Maximize2, Minimize2,
+  Minus, Maximize2, Minimize2, Fullscreen, Shrink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,6 +18,11 @@ const WIDGET_W_EXPANDED = 780;
 const WIDGET_H_NORMAL   = 460;
 const WIDGET_H_EXPANDED = 600;
 const TITLEBAR_H        = 37; // altura da barra quando minimizado
+// Abaixo disso o widget sempre ocupa a tela inteira (celular)
+const MOBILE_BREAKPOINT = 640;
+
+/** pequeno = ao abrir · médio = expandido · cheio = viewport inteira */
+type NotepadSize = 'small' | 'medium' | 'full';
 
 // ── Utilitários ───────────────────────────────────────────────────────────────
 
@@ -169,8 +174,9 @@ function PageEditor({ page, onSave }: PageEditorProps) {
           className="w-full bg-transparent text-sm font-semibold text-foreground border-b border-transparent hover:border-border/60 focus:border-primary focus:outline-none transition pb-0.5 placeholder:text-muted-foreground/50"
         />
       </div>
-      <div className="flex-1 overflow-y-auto px-4 pb-4 min-h-0">
+      <div className="flex-1 px-4 pb-4 min-h-0">
         <TiptapEditor
+          fill
           value={content}
           onChange={(val) => {
             setContent(val);
@@ -190,24 +196,39 @@ export function NotepadWidget() {
 
   const [isOpen,      setIsOpen]      = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [isExpanded,  setIsExpanded]  = useState(false);
+  const [size,        setSize]        = useState<NotepadSize>('small');
   const [activeId,    setActiveId]    = useState<string | null>(null);
   const [tabOffset,   setTabOffset]   = useState(0);
   const [isMobile,    setIsMobile]    = useState(false);
+  const [viewport,    setViewport]    = useState({ w: Infinity, h: Infinity });
+
+  // Tamanho anterior à tela cheia, para restaurar ao sair dela
+  const sizeBeforeFullRef = useRef<Exclude<NotepadSize, 'full'>>('small');
 
   // Monitor screen size
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
     };
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Dimensões atuais
-  const widgetW = isExpanded ? WIDGET_W_EXPANDED : WIDGET_W_NORMAL;
-  const widgetH = isExpanded ? WIDGET_H_EXPANDED : WIDGET_H_NORMAL;
+  const isFullscreen = size === 'full';
+
+  // Dimensões atuais (limitadas à viewport para janelas estreitas)
+  const widgetW = Math.min(size === 'medium' ? WIDGET_W_EXPANDED : WIDGET_W_NORMAL, viewport.w - MARGIN * 2);
+  const widgetH = Math.min(size === 'medium' ? WIDGET_H_EXPANDED : WIDGET_H_NORMAL, viewport.h - MARGIN * 2);
+
+  const toggleMedium = () => setSize(s => (s === 'medium' ? 'small' : 'medium'));
+
+  const toggleFullscreen = () => setSize(s => {
+    if (s === 'full') return sizeBeforeFullRef.current;
+    sizeBeforeFullRef.current = s;
+    return 'full';
+  });
 
   // getSize estável via ref — não recria o listener de mousemove quando muda
   const sizeRef = useRef({ w: widgetW, h: widgetH });
@@ -249,6 +270,7 @@ export function NotepadWidget() {
   const handleClose = () => {
     setIsOpen(false);
     setIsMinimized(false);
+    setSize('small');
     const def = defaultPos(WIDGET_W_NORMAL, WIDGET_H_NORMAL);
     setOpenPos(def);
     setDragPos(def);
@@ -266,6 +288,18 @@ export function NotepadWidget() {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [isOpen, isMinimized, widgetW, widgetH, setDragPos, isMobile]);
+
+  // Esc sai da tela cheia
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSize(sizeBeforeFullRef.current); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isFullscreen]);
+
+  // Mobile já ocupa a tela inteira; tela cheia só se aplica ao desktop
+  const fillsScreen = isMobile || isFullscreen;
+  const canDrag     = !isMinimized && !fillsScreen;
 
   // ── Páginas ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -304,6 +338,7 @@ export function NotepadWidget() {
           onClick={() => {
             setIsOpen(true);
             setIsMinimized(false);
+            setSize('small');
             const def = defaultPos(WIDGET_W_NORMAL, WIDGET_H_NORMAL);
             setOpenPos(def);
             setDragPos(def);
@@ -320,28 +355,28 @@ export function NotepadWidget() {
         <div
           style={{
             position: 'fixed',
-            left:   isMobile ? 0 : effectivePos.x,
-            top:    isMobile ? 0 : effectivePos.y,
-            width:  isMobile ? '100vw' : (isMinimized ? WIDGET_W_NORMAL : widgetW),
-            height: isMobile ? '100dvh' : (isMinimized ? 'auto' : widgetH),
+            left:   fillsScreen ? 0 : effectivePos.x,
+            top:    fillsScreen ? 0 : effectivePos.y,
+            width:  fillsScreen ? '100vw' : (isMinimized ? WIDGET_W_NORMAL : widgetW),
+            height: fillsScreen ? '100dvh' : (isMinimized ? 'auto' : widgetH),
             zIndex: 70,
-            borderRadius: isMobile ? '0px' : '1rem',
+            borderRadius: fillsScreen ? '0px' : '1rem',
           }}
           className="bg-popover border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         >
           {/* Titlebar — arrastável apenas no desktop */}
           <div
-            onMouseDown={(!isMinimized && !isMobile) ? onMouseDown : undefined}
+            onMouseDown={canDrag ? onMouseDown : undefined}
             className={[
               'flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30 shrink-0',
-              (!isMinimized && !isMobile) ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-default select-none',
+              canDrag ? 'cursor-grab active:cursor-grabbing select-none' : 'cursor-default select-none',
             ].join(' ')}
           >
             <NotebookPen className="w-3.5 h-3.5 text-violet-500 shrink-0 pointer-events-none" />
             <span
               className="text-xs font-semibold text-foreground flex-1 pointer-events-none"
-              onDoubleClick={!isMobile ? handleMinimize : undefined}
-              title={!isMobile ? "Duplo clique para minimizar/restaurar" : undefined}
+              onDoubleClick={!fillsScreen ? handleMinimize : undefined}
+              title={!fillsScreen ? "Duplo clique para minimizar/restaurar" : undefined}
             >
               Bloco de Notas
             </span>
@@ -349,15 +384,24 @@ export function NotepadWidget() {
             <div className="flex items-center gap-1">
               {!isMobile && (
                 <>
-                  <button onClick={handleMinimize} title={isMinimized ? 'Restaurar' : 'Minimizar'}
-                    className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
+                  {!isFullscreen && (
+                    <button onClick={handleMinimize} title={isMinimized ? 'Restaurar' : 'Minimizar'}
+                      className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
 
                   {!isMinimized && (
-                    <button onClick={() => setIsExpanded(v => !v)} title={isExpanded ? 'Reduzir' : 'Expandir'}
+                    <button onClick={toggleMedium} title={size === 'medium' ? 'Tamanho pequeno' : 'Tamanho médio'}
                       className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
-                      {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                      {size === 'medium' ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+
+                  {!isMinimized && (
+                    <button onClick={toggleFullscreen} title={isFullscreen ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}
+                      className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition">
+                      {isFullscreen ? <Shrink className="w-3.5 h-3.5" /> : <Fullscreen className="w-3.5 h-3.5" />}
                     </button>
                   )}
                 </>
@@ -436,7 +480,9 @@ export function NotepadWidget() {
                   </button>
                 </div>
               ) : activePage ? (
-                <PageEditor key={activePage.id} page={activePage} onSave={editPage} />
+                <div className={isFullscreen ? 'h-full w-full max-w-5xl mx-auto' : 'h-full'}>
+                  <PageEditor key={activePage.id} page={activePage} onSave={editPage} />
+                </div>
               ) : null}
             </div>
           )}
