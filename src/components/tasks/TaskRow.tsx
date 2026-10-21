@@ -1,10 +1,11 @@
 'use client';
+import { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Task, TaskStatus } from '@/types/index';
 import { OperationBadge } from '../demands/OperationBadge';
 import { GripVertical, Trash2, Calendar, CheckCircle2, Circle } from 'lucide-react';
-import { formatDateShort } from '@/lib/utils';
+import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 
@@ -21,6 +22,7 @@ interface TaskRowProps {
   onOpenDetails: (task: Task) => void;
   onOpenDemand: (demandId: string) => void;
   onToggleStatus: (task: Task) => Promise<void>;
+  onUpdatePriority?: (task: Task, newPriority: number) => Promise<void>;
   isDragEnabled: boolean;
   showCompletedAt?: boolean;
 }
@@ -31,12 +33,31 @@ export function TaskRow({
   onOpenDetails,
   onOpenDemand,
   onToggleStatus,
+  onUpdatePriority,
   isDragEnabled,
   showCompletedAt
 }: TaskRowProps) {
   const { confirm } = useConfirm();
   const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
   const badge = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
+
+  const [priorityVal, setPriorityVal] = useState<number | string>(task.priority ?? 0);
+
+  useEffect(() => {
+    setPriorityVal(task.priority ?? 0);
+  }, [task.priority]);
+
+  const handlePriorityCommit = async (val: number) => {
+    setPriorityVal(val);
+    if (val === (task.priority ?? 0)) return;
+    try {
+      if (onUpdatePriority) {
+        await onUpdatePriority(task, val);
+      }
+    } catch {
+      toast.error('Erro ao atualizar prioridade');
+    }
+  };
 
   // ── Drag-and-drop — mesmo padrão do DemandRow ─────────────────────────────
   const {
@@ -125,6 +146,55 @@ export function TaskRow({
         </button>
       </td>
 
+      {/* Prioridade */}
+      <td className="p-2 w-28" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => handlePriorityCommit(Number(priorityVal) - 1)}
+            className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-bold transition shrink-0"
+            title="Diminuir prioridade"
+          >
+            -
+          </button>
+          <input
+            type="number"
+            value={priorityVal}
+            onChange={e => setPriorityVal(e.target.value)}
+            onBlur={() => {
+              const num = parseInt(String(priorityVal), 10);
+              if (!isNaN(num)) {
+                handlePriorityCommit(num);
+              } else {
+                setPriorityVal(task.priority ?? 0);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            className={cn(
+              "w-12 px-1 py-0.5 text-xs text-center font-bold rounded-lg border transition focus:outline-none focus:ring-1 focus:ring-violet-500",
+              Number(priorityVal) > 0
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                : Number(priorityVal) < 0
+                  ? "bg-muted/70 text-muted-foreground border-border/40"
+                  : "bg-muted/30 text-foreground border-border/50"
+            )}
+            title="Prioridade (ex: -1, 0, 1, 2, 3...)"
+          />
+          <button
+            type="button"
+            onClick={() => handlePriorityCommit(Number(priorityVal) + 1)}
+            className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted text-xs font-bold transition shrink-0"
+            title="Aumentar prioridade"
+          >
+            +
+          </button>
+        </div>
+      </td>
+
       {/* Operation */}
       <td className="p-2 w-36">
         <OperationBadge operation={task.operation} />
@@ -185,10 +255,10 @@ export function TaskRow({
       </td>
 
       {/* Created At */}
-      <td className="p-2 w-24">
+      <td className="p-2 w-28">
         <div className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
           <Calendar className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-          {formatDateShort(task.createdAt)}
+          <span>{formatDateTimeShort(task.createdAt)}</span>
         </div>
       </td>
 

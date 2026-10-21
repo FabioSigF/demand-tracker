@@ -108,8 +108,22 @@ export interface CreateTaskInput {
   operation: string;
   title: string;
   description: string;
+  priority?: number;
   dueDate?: Timestamp;
   existingOrders?: number[];
+}
+
+export function sortTasksByPriorityAndTime(tasks: Task[], timeOrder: 'asc' | 'desc' = 'asc'): Task[] {
+  return [...tasks].sort((a, b) => {
+    const pA = a.priority ?? 0;
+    const pB = b.priority ?? 0;
+    if (pB !== pA) {
+      return pB - pA; // Higher priority first
+    }
+    const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : 0;
+    const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : 0;
+    return timeOrder === 'asc' ? tA - tB : tB - tA;
+  });
 }
 
 export async function createTask(input: CreateTaskInput): Promise<string> {
@@ -117,6 +131,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
   const now = Timestamp.now();
   const ref = await addDoc(collection(db, COLLECTION), {
     ...data,
+    priority: data.priority ?? 0,
     status: 'Pendente' as TaskStatus,
     order:  generateOrder(existingOrders),
     createdAt: now,

@@ -17,14 +17,18 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { useDemands } from '@/hooks/useDemands';
+import { useTasks } from '@/hooks/useTasks';
 import { DemandRow } from './DemandRow';
 import { DemandMobileCard } from './DemandMobileCard';
 import { DemandFilters, FilterState } from './DemandFilters';
 import { DemandDrawer } from './DemandDrawer';
+import { TaskDrawer } from '../tasks/TaskDrawer';
 import { TimerAdjustModal } from '../timer/TimerAdjustModal';
 import { Plus, ArrowUpDown, CheckCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { isDelayed } from '@/lib/utils';
+import { Task } from '@/types/index';
+import { sortTasksByPriorityAndTime } from '@/services/tasks.service';
 
 export function DemandsTable() {
   const router = useRouter();
@@ -40,6 +44,41 @@ export function DemandsTable() {
     removeDemand,
     reorder,
   } = useDemands();
+
+  const { activeTasks, editTask: editTaskGlobal } = useTasks();
+
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isTaskDrawerOpen, setIsTaskDrawerOpen] = useState(false);
+
+  const selectedTask = useMemo(
+    () => activeTasks.find(t => t.id === selectedTaskId) ?? null,
+    [activeTasks, selectedTaskId]
+  );
+
+  const handleOpenTask = useCallback((taskId: string) => {
+    setSelectedTaskId(taskId);
+    setIsTaskDrawerOpen(true);
+  }, []);
+
+  const handleCloseTaskDrawer = useCallback(async () => {
+    setIsTaskDrawerOpen(false);
+    await new Promise(r => setTimeout(r, 100));
+    setSelectedTaskId(null);
+  }, []);
+
+  const openTasksByDemand = useMemo(() => {
+    const map: Record<string, Task[]> = {};
+    for (const t of activeTasks) {
+      if (!map[t.demandId]) {
+        map[t.demandId] = [];
+      }
+      map[t.demandId].push(t);
+    }
+    for (const dId in map) {
+      map[dId] = sortTasksByPriorityAndTime(map[dId]);
+    }
+    return map;
+  }, [activeTasks]);
 
   const [activeTab, setActiveTab] = useState<'active' | 'done'>('active');
 
@@ -188,7 +227,8 @@ export function DemandsTable() {
         d.demandId.toLowerCase().includes(s) ||
         d.operation.toLowerCase().includes(s) ||
         d.task.toLowerCase().includes(s) ||
-        d.notes.toLowerCase().includes(s);
+        d.notes.toLowerCase().includes(s) ||
+        Boolean(d.requester && d.requester.toLowerCase().includes(s));
       if (!matchesSearch) return false;
     }
     if (filters.operation !== 'Todos' && d.operation !== filters.operation) return false;
@@ -310,6 +350,7 @@ export function DemandsTable() {
                       </span>
                     </th>
                     <th className="p-2 min-w-[200px]">Tarefa</th>
+                    <th className="p-2 w-36">Tarefas</th>
                     <th
                       onClick={() => handleSort('startDate')}
                       className="p-2 w-28 cursor-pointer hover:bg-muted/50 transition group"
@@ -340,7 +381,7 @@ export function DemandsTable() {
                 <tbody className="divide-y divide-border/60">
                   {loading ? (
                     <tr>
-                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={11} className="p-8 text-center text-muted-foreground">
                         Carregando demandas...
                       </td>
                     </tr>
@@ -353,6 +394,13 @@ export function DemandsTable() {
                         <DemandRow
                           key={demand.id}
                           demand={demand}
+                          openTasks={openTasksByDemand[demand.id] || []}
+                          onOpenTaskDetails={handleOpenTask}
+                          onToggleTaskStatus={async (t) => {
+                            const next = t.status === 'Concluída' ? 'Pendente' : 'Concluída';
+                            await editTaskGlobal(t.id, { status: next });
+                            toast.success(next === 'Concluída' ? 'Tarefa concluída' : 'Tarefa reaberta');
+                          }}
                           showCompletedDate={activeTab === 'done'}
                           onDelete={removeDemand}
                           onOpenDetails={(d) => {
@@ -366,7 +414,7 @@ export function DemandsTable() {
                     </SortableContext>
                   ) : (
                     <tr>
-                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={11} className="p-8 text-center text-muted-foreground">
                         Nenhuma demanda localizada nesta visualização.
                       </td>
                     </tr>
@@ -388,6 +436,13 @@ export function DemandsTable() {
               <DemandMobileCard
                 key={demand.id}
                 demand={demand}
+                openTasks={openTasksByDemand[demand.id] || []}
+                onOpenTaskDetails={handleOpenTask}
+                onToggleTaskStatus={async (t) => {
+                  const next = t.status === 'Concluída' ? 'Pendente' : 'Concluída';
+                  await editTaskGlobal(t.id, { status: next });
+                  toast.success(next === 'Concluída' ? 'Tarefa concluída' : 'Tarefa reaberta');
+                }}
                 showCompletedDate={activeTab === 'done'}
                 onDelete={removeDemand}
                 onOpenDetails={(d) => {
@@ -419,6 +474,19 @@ export function DemandsTable() {
         onClose={() => setAdjustTimerData(prev => ({ ...prev, isOpen: false }))}
         secondsRecorded={adjustTimerData.seconds}
         onSave={async (secs) => { await adjustTimerData.saveFn(secs); }}
+      />
+
+      {/* TaskDrawer para quando o usuário clicar numa tarefa dentro do dropdown da demanda */}
+      <TaskDrawer
+        task={selectedTask}
+        isOpen={isTaskDrawerOpen}
+        onClose={handleCloseTaskDrawer}
+        onUpdate={editTaskGlobal}
+        onOpenDemand={(dId) => {
+          setIsTaskDrawerOpen(false);
+          setSelectedDemandId(dId);
+          setIsDrawerOpen(true);
+        }}
       />
     </div>
   );

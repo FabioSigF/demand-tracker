@@ -38,6 +38,12 @@ export function formatDateShort(date: Timestamp | Date): string {
   return format(d, 'dd/MM', { locale: ptBR });
 }
 
+export function formatDateTimeShort(date: Timestamp | Date): string {
+  if (!date) return '—';
+  const d = date instanceof Timestamp ? date.toDate() : date;
+  return format(d, 'dd/MM HH:mm', { locale: ptBR });
+}
+
 export function formatDateFull(date: Timestamp | Date): string {
   const d = date instanceof Timestamp ? date.toDate() : date;
   return format(d, 'dd/MM/yyyy', { locale: ptBR });

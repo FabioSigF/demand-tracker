@@ -2,7 +2,7 @@
 import { Task, TaskStatus } from '@/types/index';
 import { OperationBadge } from '../demands/OperationBadge';
 import { Trash2, Calendar, Eye, CheckCircle2, Circle } from 'lucide-react';
-import { formatDateShort } from '@/lib/utils';
+import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 
@@ -71,7 +71,7 @@ export function TaskMobileCard({
       onClick={() => onOpenDetails(task)}
       className="bg-card border border-border/80 rounded-2xl p-4 space-y-3.5 shadow-sm hover:border-violet-500/30 transition duration-150 active:scale-[0.99] cursor-pointer"
     >
-      {/* Top row: Checkbox status, operation badge and status badge */}
+      {/* Top row: Checkbox status, operation badge, priority badge and status badge */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
@@ -84,6 +84,16 @@ export function TaskMobileCard({
             {isDone ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
           </button>
           <OperationBadge operation={task.operation} className="text-[10px] px-1.5 py-0" />
+          {task.priority !== undefined && task.priority !== 0 && (
+            <span className={cn(
+              "text-[10px] font-bold px-1.5 py-0.2 rounded-md",
+              task.priority > 0
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                : "bg-muted text-muted-foreground"
+            )}>
+              {task.priority > 0 ? `+${task.priority}` : task.priority}
+            </span>
+          )}
         </div>
 
         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${badge.classes}`}>
@@ -120,7 +130,7 @@ export function TaskMobileCard({
           <Calendar className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
           <span className="text-[10px]">Criada:</span>
           <span className="text-foreground font-semibold">
-            {task.createdAt ? formatDateShort(task.createdAt) : '—'}
+            {task.createdAt ? formatDateTimeShort(task.createdAt) : '—'}
           </span>
         </div>
 

@@ -24,6 +24,7 @@ import { CreateTaskModal } from './CreateTaskModal';
 import { TaskFilters, TaskFilterState } from './TaskFilters';
 import { DemandDrawer } from '../demands/DemandDrawer';
 import { Task } from '@/types/index';
+import { sortTasksByPriorityAndTime } from '@/services/tasks.service';
 import { CheckCircle, Clock, Plus, ListTodo, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, addDays, subDays, isToday } from 'date-fns';
@@ -116,13 +117,8 @@ export function TasksTable() {
     catch { toast.error('Erro ao reordenar tarefas'); }
   };
 
-  // Drag desabilitado na aba Finalizadas e com filtros ativos
-  const isDragEnabled =
-    activeTab === 'active' &&
-    !filters.search.trim() &&
-    filters.operation === 'Todos' &&
-    !filters.startDate &&
-    !filters.endDate;
+  // Drag desabilitado pois a ordenação é por prioridade e hora de criação
+  const isDragEnabled = false;
 
   // ── Filtragem client-side ─────────────────────────────────────────────────
   // As queries do Firestore já separam ativo/finalizado e filtram por data
@@ -132,7 +128,7 @@ export function TasksTable() {
   const currentList = activeTab === 'active' ? activeTasks : doneTasks;
 
   const filteredTasks = useMemo(() => {
-    return currentList.filter(t => {
+    const list = currentList.filter(t => {
       // Busca textual
       if (filters.search.trim()) {
         const s = filters.search.toLowerCase();
@@ -164,6 +160,8 @@ export function TasksTable() {
 
       return true;
     });
+
+    return sortTasksByPriorityAndTime(list, 'asc');
   }, [currentList, filters]);
 
   const loading = activeTab === 'active' ? loadingActive : loadingDone;
@@ -291,6 +289,7 @@ export function TasksTable() {
                   <tr className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
                     <th className="p-2 w-8"></th>
                     <th className="p-2 w-10"></th>
+                    <th className="p-2 w-28">Prioridade</th>
                     <th className="p-2 w-36">Operação</th>
                     <th className="p-2 min-w-[200px]">Tarefa</th>
                     <th className="p-2 min-w-[350px]">Descrição</th>
@@ -298,7 +297,7 @@ export function TasksTable() {
                     <th className="p-2 w-24">
                       {activeTab === 'done' ? 'Finalizada' : 'Prazo'}
                     </th>
-                    <th className="p-2 w-24">Criado em</th>
+                    <th className="p-2 w-28">Criado em</th>
                     <th className="p-2 w-12"></th>
                   </tr>
                 </thead>
@@ -306,7 +305,7 @@ export function TasksTable() {
                 <tbody className="divide-y divide-border/60">
                   {loading ? (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                      <td colSpan={10} className="p-8 text-center text-muted-foreground">
                         Carregando tarefas...
                       </td>
                     </tr>
@@ -326,6 +325,9 @@ export function TasksTable() {
                           }}
                           onOpenDemand={handleOpenDemand}
                           onToggleStatus={handleToggleStatus}
+                          onUpdatePriority={async (t, p) => {
+                            await editTask(t.id, { priority: p });
+                          }}
                           isDragEnabled={isDragEnabled}
                           showCompletedAt={activeTab === 'done'}
                         />
@@ -333,7 +335,7 @@ export function TasksTable() {
                     </SortableContext>
                   ) : (
                     <tr>
-                      <td colSpan={9}>
+                      <td colSpan={10}>
                         <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
                           <div className="w-12 h-12 rounded-2xl bg-muted/40 flex items-center justify-center">
                             <ListTodo className="w-6 h-6 text-muted-foreground/40" />

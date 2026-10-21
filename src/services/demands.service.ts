@@ -49,6 +49,7 @@ export async function createDemand(
     status: 'Pendente' as Status,
     notes: '',
     history: '',
+    requester: '',
     order: generateOrder(existingOrders),
     createdAt: now,
     updatedAt: now,

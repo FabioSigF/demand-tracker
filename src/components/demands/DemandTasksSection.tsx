@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
 
 interface DemandTasksSectionProps {
   demand: Demand;
@@ -39,6 +40,7 @@ export function DemandTasksSection({
   const [isCreating,    setIsCreating]    = useState(false);
   const [newTitle,      setNewTitle]      = useState('');
   const [newDesc,       setNewDesc]       = useState('');
+  const [newPriority,   setNewPriority]   = useState<number>(0);
   const [saving,        setSaving]        = useState(false);
 
   const handleCreate = async () => {
@@ -53,10 +55,12 @@ export function DemandTasksSection({
         operation:   demand.operation,
         title:       newTitle.trim(),
         description: newDesc.trim(),
+        priority:    newPriority,
       });
       toast.success('Tarefa criada');
       setNewTitle('');
       setNewDesc('');
+      setNewPriority(0);
       setIsCreating(false);
     } catch {
       toast.error('Erro ao criar tarefa');
@@ -117,18 +121,32 @@ export function DemandTasksSection({
       {/* Formulário inline */}
       {isCreating && (
         <div className="bg-muted/20 border border-border/60 rounded-xl p-3 space-y-2 animate-in fade-in duration-150">
-          <input
-            type="text"
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') handleCreate();
-              if (e.key === 'Escape') { setIsCreating(false); setNewTitle(''); setNewDesc(''); }
-            }}
-            placeholder="Título da tarefa..."
-            autoFocus
-            className="w-full bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleCreate();
+                if (e.key === 'Escape') { setIsCreating(false); setNewTitle(''); setNewDesc(''); setNewPriority(0); }
+              }}
+              placeholder="Título da tarefa..."
+              autoFocus
+              className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+            />
+            <div className="flex items-center gap-1 shrink-0" title="Prioridade (padrão: 0)">
+              <span className="text-[10px] text-muted-foreground font-bold">P:</span>
+              <input
+                type="number"
+                value={newPriority}
+                onChange={e => {
+                  const val = parseInt(e.target.value, 10);
+                  setNewPriority(isNaN(val) ? 0 : val);
+                }}
+                className="w-14 bg-background border border-border rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary text-foreground font-bold text-center"
+              />
+            </div>
+          </div>
           <textarea
             value={newDesc}
             onChange={e => setNewDesc(e.target.value)}
@@ -232,17 +250,29 @@ function TaskItem({ task, onOpen, onToggle, onDelete }: TaskItemProps) {
 
       <button
         onClick={() => onOpen(task)}
-        className={`flex-1 text-left text-sm leading-snug transition ${
+        className={`flex-1 text-left text-sm leading-snug transition flex items-start justify-between gap-2 ${
           isDone ? 'line-through text-muted-foreground' : 'text-foreground hover:text-primary'
         }`}
       >
-        {task.title || <span className="italic text-muted-foreground">Sem título</span>}
-        {task.description && (
-          <span
-            className="block text-xs text-muted-foreground font-normal mt-0.5 line-clamp-1"
-            style={{ textDecoration: 'none' }}
-          >
-            {task.description}
+        <div className="flex-1 min-w-0">
+          <span>{task.title || <span className="italic text-muted-foreground">Sem título</span>}</span>
+          {task.description && (
+            <span
+              className="block text-xs text-muted-foreground font-normal mt-0.5 line-clamp-1"
+              style={{ textDecoration: 'none' }}
+            >
+              {task.description}
+            </span>
+          )}
+        </div>
+        {task.priority !== undefined && task.priority !== 0 && (
+          <span className={cn(
+            "shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+            task.priority > 0
+              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+              : "bg-muted text-muted-foreground"
+          )}>
+            {task.priority > 0 ? `+${task.priority}` : task.priority}
           </span>
         )}
       </button>

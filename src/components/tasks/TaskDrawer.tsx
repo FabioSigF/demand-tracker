@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Task, TaskStatus } from '@/types/index';
-import { X, Calendar, FileText, RefreshCw, CheckCircle } from 'lucide-react';
+import { X, Calendar, FileText, RefreshCw, CheckCircle, SlidersHorizontal } from 'lucide-react';
 import { fromTimestamp, toTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import { OperationBadge } from '../demands/OperationBadge';
@@ -31,6 +31,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
   const [title,        setTitle]        = useState('');
   const [description,  setDescription]  = useState('');
   const [status,       setStatus]       = useState<TaskStatus>('Pendente');
+  const [priority,     setPriority]     = useState<number>(0);
   const [dueDateStr,   setDueDateStr]   = useState('');
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
@@ -132,6 +133,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
     setTitle(textValues.title);
     setDescription(textValues.description);
     setStatus(task.status);
+    setPriority(task.priority ?? 0);
     setDueDateStr(task.dueDate ? fromTimestamp(task.dueDate).toISOString().split('T')[0] : '');
     setSavingStatus('idle');
 
@@ -155,9 +157,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
     if (!task || !isOpen) return;
     if (initializedIdRef.current !== task.id) return;
     setStatus(task.status);
+    setPriority(task.priority ?? 0);
     setDueDateStr(task.dueDate ? fromTimestamp(task.dueDate).toISOString().split('T')[0] : '');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.status, task?.dueDate]);
+  }, [task?.status, task?.priority, task?.dueDate]);
 
   // Sincroniza campos de texto vivos (editados externamente, ex: DemandTasksSection)
   useEffect(() => {
@@ -261,10 +264,10 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
           </div>
 
           {/* Config grid */}
-          <div className="grid grid-cols-2 gap-4 bg-muted/20 border border-border/50 p-4 rounded-xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/20 border border-border/50 p-4 rounded-xl">
 
             {/* Status — select com 4 opções */}
-            <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Status
               </label>
@@ -289,8 +292,29 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
               </select>
             </div>
 
+            {/* Prioridade */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <SlidersHorizontal className="w-3 h-3 text-muted-foreground" />
+                Prioridade
+              </label>
+              <input
+                type="number"
+                value={priority}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  const p = isNaN(val) ? 0 : val;
+                  setPriority(p);
+                  handleFieldChange({ priority: p });
+                }}
+                className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-bold text-foreground"
+                placeholder="0"
+                title="Ex: -1, 0, 1, 2, 3... (maior tem prioridade)"
+              />
+            </div>
+
             {/* Due Date */}
-            <div className="space-y-1.5 col-span-2 sm:col-span-1">
+            <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
                 Prazo

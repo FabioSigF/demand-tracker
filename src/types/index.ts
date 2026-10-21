@@ -34,6 +34,7 @@ export interface Demand {
   notes: string;
   history: string;
   order: number;
+  requester?: string;
   completedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -76,6 +77,7 @@ export interface Task {
   description: string;
   status: TaskStatus;
   order: number;
+  priority?: number;
   dueDate?: Timestamp;
   completedAt?: Timestamp;
   createdAt: Timestamp;

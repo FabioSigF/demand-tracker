@@ -5,7 +5,7 @@ import { Task } from '@/types/index';
 import { STATUSES } from '@/lib/constants';
 import { useOperations } from '@/hooks/useOperations';
 import { TiptapEditor } from '../editor/TiptapEditor';
-import { X, Calendar, AlertCircle, RefreshCw, FileText, CheckCircle, BookOpen } from 'lucide-react';
+import { X, Calendar, AlertCircle, RefreshCw, FileText, CheckCircle, BookOpen, User } from 'lucide-react';
 import { fromTimestamp, toTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import { DemandTasksSection } from './DemandTasksSection';
@@ -21,13 +21,14 @@ interface DemandDrawerProps {
   onUpdate: (id: string, data: Partial<Omit<Demand, 'id' | 'userId' | 'createdAt'>>) => Promise<void>;
 }
 
-type TextFields = { task: string; notes: string; history: string };
+type TextFields = { task: string; notes: string; history: string; requester: string };
 
 export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawerProps) {
   const { operations } = useOperations();
   // ── Estado de UI da demanda ───────────────────────────────────────────────
   const [demandId,     setDemandId]     = useState('');
   const [task,         setTask]         = useState('');
+  const [requester,    setRequester]    = useState('');
   const [notes,        setNotes]        = useState('');
   const [history,      setHistory]      = useState('');
   const [operation,    setOperation]    = useState<string>('Outro');
@@ -117,8 +118,8 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
   const onCloseRef     = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
 
-  const pendingRef       = useRef<TextFields>({ task: '', notes: '', history: '' });
-  const savedRef         = useRef<TextFields>({ task: '', notes: '', history: '' });
+  const pendingRef       = useRef<TextFields>({ task: '', notes: '', history: '', requester: '' });
+  const savedRef         = useRef<TextFields>({ task: '', notes: '', history: '', requester: '' });
   const initializedIdRef = useRef<string | null>(null);
   const timerRef         = useRef<NodeJS.Timeout | null>(null);
   const isSavingRef      = useRef(false);
@@ -130,7 +131,7 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
   const hasPendingChanges = (): boolean => {
     const p = pendingRef.current;
     const s = savedRef.current;
-    return p.task !== s.task || p.notes !== s.notes || p.history !== s.history;
+    return p.task !== s.task || p.notes !== s.notes || p.history !== s.history || p.requester !== s.requester;
   };
 
   const saveNow = useCallback(async (): Promise<boolean> => {
@@ -202,12 +203,14 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
     if (initializedIdRef.current === demand.id) return;
     clearTimer();
     const textValues: TextFields = {
-      task:    demand.task    || '',
-      notes:   demand.notes   || '',
-      history: demand.history || '',
+      task:      demand.task      || '',
+      notes:     demand.notes     || '',
+      history:   demand.history   || '',
+      requester: demand.requester || '',
     };
     setDemandId(demand.demandId || '');
     setTask(textValues.task);
+    setRequester(textValues.requester);
     setNotes(textValues.notes);
     setHistory(textValues.history);
     setOperation(demand.operation);
@@ -343,6 +346,25 @@ export function DemandDrawer({ demand, isOpen, onClose, onUpdate }: DemandDrawer
               </label>
               <input type="date" value={deadlineStr} onChange={(e) => handleDateChange('deadline', e.target.value)}
                 className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium text-foreground" />
+            </div>
+
+            {/* Solicitante */}
+            <div className="space-y-1.5 col-span-2">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-muted-foreground" />Solicitante
+              </label>
+              <input
+                type="text"
+                value={requester}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setRequester(value);
+                  pendingRef.current.requester = value;
+                  scheduleAutosave();
+                }}
+                placeholder="Nome do solicitante da demanda..."
+                className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium text-foreground placeholder:text-muted-foreground/50 transition"
+              />
             </div>
           </div>
 

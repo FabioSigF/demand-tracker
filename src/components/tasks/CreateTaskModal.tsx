@@ -29,6 +29,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
   const [selectedDemand,  setSelectedDemand]  = useState<Demand | null>(preselectedDemand ?? null);
   const [title,           setTitle]           = useState('');
   const [description,     setDescription]     = useState('');
+  const [priority,        setPriority]        = useState<number>(0);
   const [saving,          setSaving]          = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -47,6 +48,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
     setSearch('');
     setTitle('');
     setDescription('');
+    setPriority(0);
     setSaving(false);
   }, [open, preselectedDemand]);
 
@@ -99,6 +101,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
         operation:   selectedDemand.operation,
         title:       title.trim(),
         description: description.trim(),
+        priority:    priority,
       });
       toast.success('Tarefa criada');
       onClose();
@@ -232,6 +235,26 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleCreate(); }}
                     placeholder="O que precisa ser feito?"
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition"
+                  />
+                </div>
+
+                {/* Prioridade */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                      Prioridade
+                    </label>
+                    <span className="text-[10px] text-muted-foreground">Padrão: 0 (maior = topo)</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={priority}
+                    onChange={e => {
+                      const val = parseInt(e.target.value, 10);
+                      setPriority(isNaN(val) ? 0 : val);
+                    }}
+                    placeholder="0"
+                    className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition font-semibold"
                   />
                 </div>
 

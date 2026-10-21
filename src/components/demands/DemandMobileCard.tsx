@@ -1,16 +1,21 @@
 'use client';
+import { useState } from 'react';
 import { Demand } from '@/types';
+import { Task } from '@/types/index';
 import { OperationBadge } from './OperationBadge';
 import { StatusBadge } from './StatusBadge';
 import { DelayedBadge } from './DelayedBadge';
 import { TimerControls } from '../timer/TimerControls';
-import { Trash2, Calendar, Eye } from 'lucide-react';
-import { formatDateShort } from '@/lib/utils';
+import { Trash2, Calendar, Eye, ListTodo, ChevronDown, User, Circle } from 'lucide-react';
+import { formatDateShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 
 interface DemandMobileCardProps {
   demand: Demand;
+  openTasks?: Task[];
+  onOpenTaskDetails?: (taskId: string) => void;
+  onToggleTaskStatus?: (task: Task) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onOpenDetails: (demand: Demand) => void;
   onStopTimerClick: (seconds: number, stopFn: (finalSeconds: number) => Promise<number>) => void;
@@ -19,12 +24,16 @@ interface DemandMobileCardProps {
 
 export function DemandMobileCard({
   demand,
+  openTasks = [],
+  onOpenTaskDetails,
+  onToggleTaskStatus,
   onDelete,
   onOpenDetails,
   onStopTimerClick,
   showCompletedDate
 }: DemandMobileCardProps) {
   const { confirm } = useConfirm();
+  const [isTasksExpanded, setIsTasksExpanded] = useState(false);
 
   const handleDeleteRequest = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -64,12 +73,18 @@ export function DemandMobileCard({
         <StatusBadge status={demand.status} className="text-[10px] px-1.5 py-0" />
       </div>
 
-      {/* Demand Title */}
+      {/* Demand Title & Requester */}
       <div className="space-y-1">
         <h4 className="font-semibold text-foreground text-sm leading-snug">
           {demand.task || <span className="text-muted-foreground italic">Sem título</span>}
         </h4>
-        <div className="flex flex-wrap items-center gap-1.5">
+        {demand.requester && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <User className="w-3 h-3 text-muted-foreground/70 shrink-0" />
+            <span className="truncate">{demand.requester}</span>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
           <DelayedBadge deadline={demand.deadline} status={demand.status} />
         </div>
       </div>
@@ -101,6 +116,59 @@ export function DemandMobileCard({
         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed bg-muted/30 p-2 rounded-lg">
           {demand.notes}
         </p>
+      )}
+
+      {/* Open Tasks Section */}
+      {openTasks.length > 0 && (
+        <div className="pt-1 border-t border-border/40" onClick={e => e.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => setIsTasksExpanded(!isTasksExpanded)}
+            className="w-full flex items-center justify-between py-1.5 px-2.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/15 text-violet-600 dark:text-violet-400 text-xs font-medium transition"
+          >
+            <span className="flex items-center gap-1.5">
+              <ListTodo className="w-3.5 h-3.5 text-violet-500" />
+              <span>{openTasks.length} {openTasks.length === 1 ? 'tarefa aberta' : 'tarefas abertas'}</span>
+            </span>
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", isTasksExpanded && "rotate-180")} />
+          </button>
+
+          {isTasksExpanded && (
+            <div className="mt-2 space-y-1.5 pl-0.5">
+              {openTasks.map(t => (
+                <div
+                  key={t.id}
+                  onClick={() => onOpenTaskDetails?.(t.id)}
+                  className="flex items-center justify-between p-2 rounded-xl bg-muted/50 hover:bg-muted text-xs border border-border/50 transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (onToggleTaskStatus) await onToggleTaskStatus(t);
+                      }}
+                      className="text-muted-foreground hover:text-emerald-500 transition shrink-0 p-0.5"
+                    >
+                      <Circle className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="truncate font-medium text-foreground">{t.title}</span>
+                  </div>
+                  {t.priority !== undefined && t.priority !== 0 && (
+                    <span className={cn(
+                      "shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-2",
+                      t.priority > 0
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                        : "bg-muted text-muted-foreground"
+                    )}>
+                      {t.priority > 0 ? `+${t.priority}` : t.priority}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Footer controls */}
