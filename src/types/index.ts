@@ -73,6 +73,9 @@ export interface AnalyticsData {
 
 export type TaskStatus = 'Pendente' | 'Em andamento' | 'Cancelado' | 'Concluída';
 
+/** Ao concluir uma tarefa recorrente, a próxima ocorrência é criada automaticamente */
+export type TaskRecurrence = 'none' | 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly';
+
 export interface Task {
   id: string;
   userId: string;
@@ -85,6 +88,9 @@ export interface Task {
   order: number;
   priority?: number;
   dueDate?: Timestamp;
+  recurrence?: TaskRecurrence;
+  /** Próxima ocorrência já gerada — evita duplicar ao reabrir e concluir de novo */
+  nextTaskId?: string;
   completedAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;

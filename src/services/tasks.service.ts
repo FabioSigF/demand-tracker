@@ -1,10 +1,11 @@
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc,
+  collection, doc, addDoc, updateDoc, deleteDoc, getDoc,
   query, where, orderBy, onSnapshot, Timestamp,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Task, TaskStatus } from '@/types/index';
+import { Task, TaskRecurrence, TaskStatus } from '@/types/index';
+import { getNextDueDate } from '@/lib/recurrence';
 // Operation is typed as string below
 
 const COLLECTION = 'tasks';
@@ -110,7 +111,15 @@ export interface CreateTaskInput {
   description: string;
   priority?: number;
   dueDate?: Timestamp;
+  recurrence?: TaskRecurrence;
   existingOrders?: number[];
+}
+
+/** Demanda alvo ao criar a mesma tarefa em várias demandas de uma vez */
+export interface TaskDemandTarget {
+  demandId: string;
+  demandTitle: string;
+  operation: string;
 }
 
 export function sortTasksByPriorityAndTime(tasks: Task[], timeOrder: 'asc' | 'desc' = 'asc'): Task[] {
@@ -126,19 +135,39 @@ export function sortTasksByPriorityAndTime(tasks: Task[], timeOrder: 'asc' | 'de
   });
 }
 
-export async function createTask(input: CreateTaskInput): Promise<string> {
+function buildNewTask(input: CreateTaskInput, now: Timestamp) {
   const { existingOrders = [], ...data } = input;
-  const now = Timestamp.now();
-  const ref = await addDoc(collection(db, COLLECTION), {
+  return {
     ...data,
     priority: data.priority ?? 0,
+    recurrence: data.recurrence ?? 'none',
     status: 'Pendente' as TaskStatus,
     order:  generateOrder(existingOrders),
     createdAt: now,
     updatedAt: now,
     dueDate: data.dueDate ? data.dueDate : now,
-  });
+  };
+}
+
+export async function createTask(input: CreateTaskInput): Promise<string> {
+  const ref = await addDoc(collection(db, COLLECTION), buildNewTask(input, Timestamp.now()));
   return ref.id;
+}
+
+/** Cria uma cópia da tarefa para cada demanda, em uma única escrita atômica */
+export async function createTaskForDemands(
+  input: Omit<CreateTaskInput, 'demandId' | 'demandTitle' | 'operation'>,
+  targets: TaskDemandTarget[]
+): Promise<string[]> {
+  const now   = Timestamp.now();
+  const batch = writeBatch(db);
+  const ids = targets.map(target => {
+    const ref = doc(collection(db, COLLECTION));
+    batch.set(ref, buildNewTask({ ...input, ...target }, now));
+    return ref.id;
+  });
+  await batch.commit();
+  return ids;
 }
 
 export async function updateTask(
@@ -154,7 +183,38 @@ export async function updateTask(
   } else if (data.status === 'Pendente' || data.status === 'Em andamento') {
     updateData.completedAt = null;
   }
-  await updateDoc(doc(db, COLLECTION, id), updateData);
+
+  const ref = doc(db, COLLECTION, id);
+
+  // Concluir uma tarefa recorrente gera a próxima ocorrência (uma única vez)
+  if (data.status === 'Concluída') {
+    const snap = await getDoc(ref);
+    const current = snap.exists() ? ({ id: snap.id, ...snap.data() } as Task) : null;
+    const recurrence = data.recurrence ?? current?.recurrence;
+    if (current && recurrence && recurrence !== 'none' && !current.nextTaskId) {
+      const now     = Timestamp.now();
+      const baseDue = (data.dueDate ?? current.dueDate ?? now).toDate();
+      const nextRef = doc(collection(db, COLLECTION));
+      const batch   = writeBatch(db);
+      batch.set(nextRef, buildNewTask({
+        userId:      current.userId,
+        demandId:    current.demandId,
+        demandTitle: current.demandTitle,
+        operation:   current.operation,
+        title:       data.title ?? current.title,
+        description: data.description ?? current.description,
+        priority:    data.priority ?? current.priority,
+        recurrence,
+        dueDate:     Timestamp.fromDate(getNextDueDate(baseDue, recurrence)),
+        existingOrders: [current.order],
+      }, now));
+      batch.update(ref, { ...updateData, nextTaskId: nextRef.id });
+      await batch.commit();
+      return;
+    }
+  }
+
+  await updateDoc(ref, updateData);
 }
 
 export async function deleteTask(id: string): Promise<void> {

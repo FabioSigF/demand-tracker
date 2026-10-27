@@ -8,8 +8,9 @@ import { GripVertical, Trash2, Calendar, CheckCircle2, Circle } from 'lucide-rea
 import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
+import { RecurrenceBadge } from './RecurrenceBadge';
 
-const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
+export const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
   'Pendente': { label: 'Pendente', classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
   'Em andamento': { label: 'Em andamento', classes: 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
   'Cancelado': { label: 'Cancelado', classes: 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400', dot: 'bg-red-500' },
@@ -210,10 +211,13 @@ export function TaskRow({
           >
             <span className="truncate">{task.demandTitle || 'Sem título'}</span>
           </button>
-          <span className={`font-medium truncate block max-w-xs ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'
-            }`}>
-            {task.title || <span className="italic text-muted-foreground">Sem título</span>}
-          </span>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={`font-medium truncate block max-w-xs ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'
+              }`}>
+              {task.title || <span className="italic text-muted-foreground">Sem título</span>}
+            </span>
+            <RecurrenceBadge recurrence={task.recurrence} />
+          </div>
         </div>
       </td>
 

@@ -1,11 +1,15 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { Timestamp } from 'firebase/firestore';
+import { format } from 'date-fns';
 import { useDemands } from '@/hooks/useDemands';
-import { createTask } from '@/services/tasks.service';
+import { createTaskForDemands } from '@/services/tasks.service';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { Demand } from '@/types';
-import { Search, X, Plus, RefreshCw, ChevronRight } from 'lucide-react';
+import { Demand, TaskRecurrence } from '@/types';
+import { DONE_STATUSES, TASK_RECURRENCE_OPTIONS } from '@/lib/constants';
+import { cn } from '@/lib/utils';
+import { Search, X, Plus, RefreshCw, ChevronRight, Check, Calendar, Repeat } from 'lucide-react';
 import { OperationBadge } from '../demands/OperationBadge';
 import { toast } from 'sonner';
 
@@ -15,6 +19,8 @@ interface CreateTaskModalProps {
   /** Se fornecido, pré-seleciona a demanda e não mostra o passo de busca */
   preselectedDemand?: Demand | null;
 }
+
+const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 
 export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTaskModalProps) {
   const { user } = useAuthContext();
@@ -26,10 +32,12 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
   );
 
   const [search,          setSearch]          = useState('');
-  const [selectedDemand,  setSelectedDemand]  = useState<Demand | null>(preselectedDemand ?? null);
+  const [selectedDemands, setSelectedDemands] = useState<Demand[]>(preselectedDemand ? [preselectedDemand] : []);
   const [title,           setTitle]           = useState('');
   const [description,     setDescription]     = useState('');
   const [priority,        setPriority]        = useState<number>(0);
+  const [dueDateStr,      setDueDateStr]      = useState(todayStr);
+  const [recurrence,      setRecurrence]      = useState<TaskRecurrence>('none');
   const [saving,          setSaving]          = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -40,15 +48,17 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
     if (!open) return;
     if (preselectedDemand) {
       setStep('task');
-      setSelectedDemand(preselectedDemand);
+      setSelectedDemands([preselectedDemand]);
     } else {
       setStep('demand');
-      setSelectedDemand(null);
+      setSelectedDemands([]);
     }
     setSearch('');
     setTitle('');
     setDescription('');
     setPriority(0);
+    setDueDateStr(todayStr());
+    setRecurrence('none');
     setSaving(false);
   }, [open, preselectedDemand]);
 
@@ -71,7 +81,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
 
   // Filtra demandas ativas pela busca
   const filteredDemands = demands
-    .filter(d => !['Concluído', 'Cancelado'].includes(d.status))
+    .filter(d => !DONE_STATUSES.includes(d.status))
     .filter(d => {
       if (!search.trim()) return true;
       const s = search.toLowerCase();
@@ -82,28 +92,43 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
       );
     });
 
-  const handleSelectDemand = (demand: Demand) => {
-    setSelectedDemand(demand);
-    setStep('task');
+  const isSelected = (demand: Demand) => selectedDemands.some(d => d.id === demand.id);
+
+  const toggleDemand = (demand: Demand) => {
+    setSelectedDemands(prev =>
+      prev.some(d => d.id === demand.id)
+        ? prev.filter(d => d.id !== demand.id)
+        : [...prev, demand]
+    );
   };
 
   const handleCreate = async () => {
     if (!title.trim()) { toast.error('Informe um título para a tarefa'); return; }
-    if (!selectedDemand) { toast.error('Selecione uma demanda'); return; }
+    if (selectedDemands.length === 0) { toast.error('Selecione ao menos uma demanda'); return; }
     if (!user) return;
 
     setSaving(true);
     try {
-      await createTask({
-        userId:      user.uid,
-        demandId:    selectedDemand.id,
-        demandTitle: selectedDemand.task || '',
-        operation:   selectedDemand.operation,
-        title:       title.trim(),
-        description: description.trim(),
-        priority:    priority,
-      });
-      toast.success('Tarefa criada');
+      await createTaskForDemands(
+        {
+          userId:      user.uid,
+          title:       title.trim(),
+          description: description.trim(),
+          priority,
+          recurrence,
+          dueDate: dueDateStr ? Timestamp.fromDate(new Date(dueDateStr + 'T12:00:00')) : undefined,
+        },
+        selectedDemands.map(d => ({
+          demandId:    d.id,
+          demandTitle: d.task || '',
+          operation:   d.operation,
+        }))
+      );
+      toast.success(
+        selectedDemands.length > 1
+          ? `Tarefa criada em ${selectedDemands.length} demandas`
+          : 'Tarefa criada'
+      );
       onClose();
     } catch {
       toast.error('Erro ao criar tarefa');
@@ -138,13 +163,14 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
               {step === 'task' && !preselectedDemand && (
                 <button
                   onClick={() => setStep('demand')}
+                  title="Voltar para a seleção de demandas"
                   className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
                 >
                   <ChevronRight className="w-4 h-4 rotate-180" />
                 </button>
               )}
               <h2 className="text-sm font-semibold text-foreground">
-                {step === 'demand' ? 'Nova Tarefa — Selecionar Demanda' : 'Nova Tarefa'}
+                {step === 'demand' ? 'Nova Tarefa — Selecionar Demandas' : 'Nova Tarefa'}
               </h2>
             </div>
             <button
@@ -155,7 +181,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
             </button>
           </div>
 
-          {/* ── Passo 1: selecionar demanda ── */}
+          {/* ── Passo 1: selecionar uma ou mais demandas ── */}
           {step === 'demand' && (
             <div className="flex flex-col min-h-0 flex-1">
               {/* Search */}
@@ -171,6 +197,9 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     className="w-full bg-muted/40 hover:bg-muted focus:bg-background border border-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary transition"
                   />
                 </div>
+                <p className="text-[11px] text-muted-foreground mt-2">
+                  Selecione uma ou mais demandas. Uma tarefa será criada em cada uma.
+                </p>
               </div>
 
               {/* Lista */}
@@ -180,44 +209,94 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     {search ? 'Nenhuma demanda encontrada.' : 'Nenhuma demanda ativa.'}
                   </p>
                 ) : (
-                  filteredDemands.map(demand => (
-                    <button
-                      key={demand.id}
-                      onClick={() => handleSelectDemand(demand)}
-                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/40 transition text-left group"
-                    >
-                      <div className="shrink-0 mt-0.5">
-                        <OperationBadge operation={demand.operation} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition">
-                          {demand.task || <span className="italic text-muted-foreground">Sem título</span>}
-                        </p>
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                          {demand.demandId || '—'}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 mt-1 transition" />
-                    </button>
-                  ))
+                  filteredDemands.map(demand => {
+                    const checked = isSelected(demand);
+                    return (
+                      <button
+                        key={demand.id}
+                        onClick={() => toggleDemand(demand)}
+                        aria-pressed={checked}
+                        className={cn(
+                          'w-full flex items-start gap-3 px-3 py-2.5 rounded-xl transition text-left group',
+                          checked ? 'bg-violet-500/10' : 'hover:bg-muted/40'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 transition',
+                            checked
+                              ? 'bg-violet-600 border-violet-600 text-white'
+                              : 'border-border group-hover:border-muted-foreground'
+                          )}
+                        >
+                          {checked && <Check className="w-3 h-3" />}
+                        </span>
+                        <div className="shrink-0">
+                          <OperationBadge operation={demand.operation} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {demand.task || <span className="italic text-muted-foreground">Sem título</span>}
+                          </p>
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                            {demand.demandId || '—'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-5 py-3 border-t border-border/60 shrink-0 flex items-center justify-between gap-2.5">
+                <span className="text-xs text-muted-foreground">
+                  {selectedDemands.length === 0
+                    ? 'Nenhuma selecionada'
+                    : `${selectedDemands.length} selecionada${selectedDemands.length > 1 ? 's' : ''}`}
+                </span>
+                <button
+                  onClick={() => setStep('task')}
+                  disabled={selectedDemands.length === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition"
+                >
+                  Continuar
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           )}
 
           {/* ── Passo 2: preencher tarefa ── */}
-          {step === 'task' && selectedDemand && (
+          {step === 'task' && selectedDemands.length > 0 && (
             <div className="flex flex-col min-h-0 flex-1">
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
 
-                {/* Demanda selecionada — informativo */}
-                <div className="flex items-center gap-3 bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5">
-                  <OperationBadge operation={selectedDemand.operation} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-muted-foreground mb-0.5">Demanda vinculada</p>
-                    <p className="text-sm font-semibold text-foreground truncate">
-                      {selectedDemand.task || 'Sem título'}
-                    </p>
+                {/* Demandas selecionadas */}
+                <div className="bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5 space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedDemands.length > 1
+                      ? `Demandas vinculadas (${selectedDemands.length})`
+                      : 'Demanda vinculada'}
+                  </p>
+                  <div className="flex flex-col gap-1.5">
+                    {selectedDemands.map(d => (
+                      <div key={d.id} className="flex items-center gap-2 min-w-0">
+                        <OperationBadge operation={d.operation} />
+                        <span className="text-sm font-semibold text-foreground truncate flex-1">
+                          {d.task || 'Sem título'}
+                        </span>
+                        {selectedDemands.length > 1 && !preselectedDemand && (
+                          <button
+                            onClick={() => toggleDemand(d)}
+                            title="Remover desta seleção"
+                            className="p-0.5 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -237,6 +316,44 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Prazo */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      Prazo
+                    </label>
+                    <input
+                      type="date"
+                      value={dueDateStr}
+                      onChange={e => setDueDateStr(e.target.value)}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition"
+                    />
+                  </div>
+
+                  {/* Recorrência */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                      <Repeat className="w-3 h-3" />
+                      Repetir
+                    </label>
+                    <select
+                      value={recurrence}
+                      onChange={e => setRecurrence(e.target.value as TaskRecurrence)}
+                      className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition"
+                    >
+                      {TASK_RECURRENCE_OPTIONS.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {recurrence !== 'none' && (
+                  <p className="text-[11px] text-muted-foreground -mt-2">
+                    Ao concluir, a próxima ocorrência é criada automaticamente com o prazo seguinte.
+                  </p>
+                )}
 
                 {/* Prioridade */}
                 <div className="space-y-1.5">
@@ -289,7 +406,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                 >
                   {saving
                     ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Criando...</>
-                    : <><Plus className="w-3.5 h-3.5" /> Criar Tarefa</>
+                    : <><Plus className="w-3.5 h-3.5" /> {selectedDemands.length > 1 ? `Criar ${selectedDemands.length} Tarefas` : 'Criar Tarefa'}</>
                   }
                 </button>
               </div>

@@ -22,13 +22,17 @@ import { TaskMobileCard } from './TaskMobileCard';
 import { TaskDrawer } from './TaskDrawer';
 import { CreateTaskModal } from './CreateTaskModal';
 import { TaskFilters, TaskFilterState } from './TaskFilters';
+import { TasksGroupedView } from './TasksGroupedView';
 import { DemandDrawer } from '../demands/DemandDrawer';
 import { Task } from '@/types/index';
+import { Demand } from '@/types';
 import { sortTasksByPriorityAndTime } from '@/services/tasks.service';
-import { CheckCircle, Clock, Plus, ListTodo, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle, Clock, Plus, ListTodo, Calendar, ChevronLeft, ChevronRight, List, Layers } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, addDays, subDays, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+const VIEW_STORAGE_KEY = 'tasks:view';
 
 export function TasksTable() {
   const {
@@ -46,6 +50,18 @@ export function TasksTable() {
 
   const [activeTab, setActiveTab] = useState<'active' | 'done'>('active');
 
+  // ── Modo de visualização (lembrado por navegador) ─────────────────────────
+  // AuthGuard só renderiza no cliente, então ler o storage no init é seguro
+  const [view, setView] = useState<'list' | 'grouped'>(() => {
+    try {
+      return typeof window !== 'undefined' && localStorage.getItem(VIEW_STORAGE_KEY) === 'grouped' ? 'grouped' : 'list';
+    } catch { return 'list'; }
+  });
+  const changeView = (next: 'list' | 'grouped') => {
+    setView(next);
+    try { localStorage.setItem(VIEW_STORAGE_KEY, next); } catch { /* storage indisponível */ }
+  };
+
   // ── Filtros unificados ────────────────────────────────────────────────────
   const [filters, setFilters] = useState<TaskFilterState>({
     search:    '',
@@ -54,6 +70,12 @@ export function TasksTable() {
 
   // ── CreateTaskModal ───────────────────────────────────────────────────────
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createForDemand, setCreateForDemand] = useState<Demand | null>(null);
+
+  const openCreate = useCallback((demand: Demand | null = null) => {
+    setCreateForDemand(demand);
+    setIsCreateOpen(true);
+  }, []);
 
   // ── TaskDrawer ────────────────────────────────────────────────────────────
   const [selectedTaskId,   setSelectedTaskId]   = useState<string | null>(null);
@@ -207,13 +229,41 @@ export function TasksTable() {
           </button>
         </div>
 
-        <button
-          onClick={() => setIsCreateOpen(true)}
-          className="flex items-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm px-4 py-2 rounded-xl transition shadow-lg shadow-violet-500/20"
-        >
-          <Plus className="w-4 h-4" />
-          Nova Tarefa
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Alternar visualização */}
+          <div className="flex items-center bg-muted/40 border border-border rounded-lg p-0.5" role="group" aria-label="Visualização">
+            <button
+              onClick={() => changeView('list')}
+              aria-pressed={view === 'list'}
+              title="Lista"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition ${
+                view === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              onClick={() => changeView('grouped')}
+              aria-pressed={view === 'grouped'}
+              title="Agrupar por demanda"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold transition ${
+                view === 'grouped' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Por demanda</span>
+            </button>
+          </div>
+
+          <button
+            onClick={() => openCreate()}
+            className="flex items-center gap-1 bg-violet-600 hover:bg-violet-500 text-white font-semibold text-sm px-4 py-2 rounded-xl transition shadow-lg shadow-violet-500/20"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nova Tarefa</span>
+          </button>
+        </div>
       </div>
 
       {/* Filtros + navegador de data */}
@@ -276,6 +326,38 @@ export function TasksTable() {
 
       {/* Table & Mobile view */}
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 pb-6 min-h-0">
+        {view === 'grouped' ? (
+          loading ? (
+            <div className="p-8 text-center text-muted-foreground bg-card border border-border rounded-xl">
+              Carregando tarefas...
+            </div>
+          ) : filteredTasks.length > 0 ? (
+            <div className="pb-20 lg:pb-0">
+              <TasksGroupedView
+                tasks={filteredTasks}
+                onOpenTask={(t) => {
+                  setSelectedTaskId(t.id);
+                  setIsTaskDrawerOpen(true);
+                }}
+                onOpenDemand={handleOpenDemand}
+                onToggleStatus={handleToggleStatus}
+                onAddTask={(demand) => openCreate(demand)}
+                showCompletedAt={activeTab === 'done'}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center bg-card border border-border rounded-xl p-6">
+              <ListTodo className="w-6 h-6 text-muted-foreground/40" />
+              <p className="text-sm font-semibold text-foreground">Nenhuma tarefa encontrada</p>
+              <p className="text-xs text-muted-foreground">
+                {activeTab === 'active'
+                  ? 'Ajuste os filtros ou crie uma nova tarefa.'
+                  : `Nenhuma tarefa finalizada em ${doneDateLabel.toLowerCase()}.`}
+              </p>
+            </div>
+          )
+        ) : (
+        <>
         {/* Desktop View */}
         <div className="hidden lg:flex bg-card border border-border rounded-xl shadow-sm overflow-hidden h-full flex-col">
           <div className="flex-1 overflow-auto">
@@ -358,7 +440,7 @@ export function TasksTable() {
                           </div>
                           {!filters.search && filters.operation === 'Todos' && !filters.startDate && !filters.endDate && activeTab === 'active' && (
                             <button
-                              onClick={() => setIsCreateOpen(true)}
+                              onClick={() => openCreate()}
                               className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition shadow-lg shadow-violet-500/20"
                             >
                               <Plus className="w-4 h-4" />
@@ -415,7 +497,7 @@ export function TasksTable() {
               </div>
               {!filters.search && filters.operation === 'Todos' && !filters.startDate && !filters.endDate && activeTab === 'active' && (
                 <button
-                  onClick={() => setIsCreateOpen(true)}
+                  onClick={() => openCreate()}
                   className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition"
                 >
                   <Plus className="w-4 h-4" />
@@ -425,12 +507,15 @@ export function TasksTable() {
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
 
       {/* Modais e Drawers */}
       <CreateTaskModal
         open={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+        preselectedDemand={createForDemand}
       />
 
       <TaskDrawer

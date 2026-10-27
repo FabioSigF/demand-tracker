@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Task, TaskStatus } from '@/types/index';
-import { X, Calendar, FileText, RefreshCw, CheckCircle, SlidersHorizontal } from 'lucide-react';
+import { Task, TaskRecurrence, TaskStatus } from '@/types/index';
+import { TASK_RECURRENCE_OPTIONS } from '@/lib/constants';
+import { X, Calendar, FileText, RefreshCw, CheckCircle, SlidersHorizontal, Repeat } from 'lucide-react';
 import { fromTimestamp, toTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import { OperationBadge } from '../demands/OperationBadge';
@@ -33,6 +34,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
   const [status,       setStatus]       = useState<TaskStatus>('Pendente');
   const [priority,     setPriority]     = useState<number>(0);
   const [dueDateStr,   setDueDateStr]   = useState('');
+  const [recurrence,   setRecurrence]   = useState<TaskRecurrence>('none');
   const [savingStatus, setSavingStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // ── Refs estáticos ────────────────────────────────────────────────────────
@@ -135,6 +137,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
     setStatus(task.status);
     setPriority(task.priority ?? 0);
     setDueDateStr(task.dueDate ? fromTimestamp(task.dueDate).toISOString().split('T')[0] : '');
+    setRecurrence(task.recurrence ?? 'none');
     setSavingStatus('idle');
 
     pendingRef.current = { ...textValues };
@@ -159,8 +162,9 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
     setStatus(task.status);
     setPriority(task.priority ?? 0);
     setDueDateStr(task.dueDate ? fromTimestamp(task.dueDate).toISOString().split('T')[0] : '');
+    setRecurrence(task.recurrence ?? 'none');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.status, task?.priority, task?.dueDate]);
+  }, [task?.status, task?.priority, task?.dueDate, task?.recurrence]);
 
   // Sincroniza campos de texto vivos (editados externamente, ex: DemandTasksSection)
   useEffect(() => {
@@ -264,7 +268,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
           </div>
 
           {/* Config grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/20 border border-border/50 p-4 rounded-xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/20 border border-border/50 p-4 rounded-xl">
 
             {/* Status — select com 4 opções */}
             <div className="space-y-1.5">
@@ -332,7 +336,35 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
                 className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium text-foreground"
               />
             </div>
+
+            {/* Recorrência */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <Repeat className="w-3.5 h-3.5 text-muted-foreground" />
+                Repetir
+              </label>
+              <select
+                value={recurrence}
+                onChange={(e) => {
+                  const val = e.target.value as TaskRecurrence;
+                  setRecurrence(val);
+                  handleFieldChange({ recurrence: val });
+                }}
+                className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium text-foreground"
+              >
+                {TASK_RECURRENCE_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
+          {recurrence !== 'none' && (
+            <p className="text-[11px] text-muted-foreground -mt-4">
+              {task.nextTaskId
+                ? 'A próxima ocorrência desta tarefa já foi criada.'
+                : 'Ao concluir, a próxima ocorrência é criada automaticamente com o prazo seguinte.'}
+            </p>
+          )}
 
           {/* Descrição */}
           <div className="space-y-2 pb-6">

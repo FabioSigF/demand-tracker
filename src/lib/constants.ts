@@ -1,4 +1,4 @@
-import { Status } from '@/types';
+import { Status, TaskRecurrence } from '@/types';
 
 export const STATUSES: Status[] = [
   'Backlog', 'Pendente', 'Em andamento', 'Aguardando cliente', 'Concluído', 'Cancelado'
@@ -74,6 +74,19 @@ export const ACTIVE_STATUSES: Status[] = ['Backlog', 'Pendente', 'Em andamento',
 export const DONE_STATUSES: Status[] = ['Concluído', 'Cancelado'];
 
 export const DEBOUNCE_MS = 2000;
+
+export const TASK_RECURRENCE_OPTIONS: { value: TaskRecurrence; label: string }[] = [
+  { value: 'none',     label: 'Não se repete' },
+  { value: 'daily',    label: 'Diária' },
+  { value: 'weekdays', label: 'Dias úteis (seg–sex)' },
+  { value: 'weekly',   label: 'Semanal' },
+  { value: 'biweekly', label: 'Quinzenal' },
+  { value: 'monthly',  label: 'Mensal' },
+];
+
+export const TASK_RECURRENCE_LABELS = Object.fromEntries(
+  TASK_RECURRENCE_OPTIONS.map(o => [o.value, o.label])
+) as Record<TaskRecurrence, string>;
 
 export const DOCUMENTATION_CATEGORIES = [
   { id: 'sistema', label: 'Sistema / Ferramenta' },

@@ -5,6 +5,7 @@ import { Trash2, Calendar, Eye, CheckCircle2, Circle } from 'lucide-react';
 import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
+import { RecurrenceBadge } from './RecurrenceBadge';
 
 const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
   'Pendente': { label: 'Pendente', classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
@@ -115,6 +116,7 @@ export function TaskMobileCard({
         <h4 className={`font-semibold text-sm leading-snug ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
           {task.title || <span className="text-muted-foreground italic">Sem título</span>}
         </h4>
+        <RecurrenceBadge recurrence={task.recurrence} className="self-start" />
       </div>
 
       {/* Description */}
