@@ -9,6 +9,8 @@ import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 import { RecurrenceBadge } from './RecurrenceBadge';
+import { EventBadge, EVENT_ACCENT_CLASSES, EVENT_ROW_CLASSES } from './EventBadge';
+import { isEventTask } from '@/services/tasks.service';
 
 export const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
   'Pendente': { label: 'Pendente', classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
@@ -40,6 +42,7 @@ export function TaskRow({
 }: TaskRowProps) {
   const { confirm } = useConfirm();
   const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
+  const isEvent = isEventTask(task);
   const badge = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
 
   const [priorityVal, setPriorityVal] = useState<number | string>(task.priority ?? 0);
@@ -115,10 +118,13 @@ export function TaskRow({
       ref={setNodeRef}
       style={style}
       onClick={() => onOpenDetails(task)}
-      className="border-b border-border/60 hover:bg-muted/15 transition-all text-sm group cursor-pointer"
+      className={cn(
+        'border-b border-border/60 transition-all text-sm group cursor-pointer',
+        isEvent ? EVENT_ROW_CLASSES : 'hover:bg-muted/15'
+      )}
     >
       {/* Drag Handle */}
-      <td className="p-2 w-8 text-center" onClick={e => e.stopPropagation()}>
+      <td className={cn('p-2 w-8 text-center', isEvent && EVENT_ACCENT_CLASSES)} onClick={e => e.stopPropagation()}>
         {isDragEnabled ? (
           <button
             {...attributes}
@@ -149,6 +155,9 @@ export function TaskRow({
 
       {/* Prioridade */}
       <td className="p-2 w-28" onClick={e => e.stopPropagation()}>
+        {isEvent ? (
+          <span className="text-muted-foreground text-xs">—</span>
+        ) : (
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -194,16 +203,20 @@ export function TaskRow({
             +
           </button>
         </div>
+        )}
       </td>
 
       {/* Operation */}
       <td className="p-2 w-36">
-        <OperationBadge operation={task.operation} />
+        {task.operation
+          ? <OperationBadge operation={task.operation} />
+          : <span className="text-muted-foreground text-xs">—</span>}
       </td>
 
       {/* Tarefa + badge da demanda */}
       <td className="p-2 min-w-[200px]">
         <div className="flex flex-col gap-1">
+          {task.demandId && (
           <button
             onClick={handleDemandBadgeClick}
             className="self-start flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted/60 hover:bg-muted border border-border/50 hover:border-border text-[10px] font-medium text-muted-foreground hover:text-foreground transition max-w-[200px]"
@@ -211,7 +224,9 @@ export function TaskRow({
           >
             <span className="truncate">{task.demandTitle || 'Sem título'}</span>
           </button>
+          )}
           <div className="flex items-center gap-1.5 min-w-0">
+            {isEvent && <EventBadge />}
             <span className={`font-medium truncate block max-w-xs ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'
               }`}>
               {task.title || <span className="italic text-muted-foreground">Sem título</span>}
@@ -238,7 +253,7 @@ export function TaskRow({
       </td>
 
       {/* Due Date */}
-      <td className="p-2 w-24">
+      <td className="p-2 w-28">
         {showCompletedAt ? (
           task.completedAt ? (
             <div className="flex items-center gap-1 text-xs text-foreground font-semibold tabular-nums">
@@ -249,9 +264,9 @@ export function TaskRow({
             <span className="text-muted-foreground text-xs">—</span>
           )
         ) : task.dueDate ? (
-          <div className="flex items-center gap-1 text-xs text-foreground font-semibold tabular-nums">
+          <div className={cn('flex items-center gap-1 text-xs font-semibold tabular-nums', isEvent ? 'text-green-600 dark:text-green-400' : 'text-foreground')}>
             <Calendar className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-            {formatDateShort(task.dueDate)}
+            {isEvent ? formatDateTimeShort(task.dueDate) : formatDateShort(task.dueDate)}
           </div>
         ) : (
           <span className="text-muted-foreground text-xs">—</span>

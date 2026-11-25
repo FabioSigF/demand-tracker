@@ -6,6 +6,9 @@ import { X, Calendar, FileText, RefreshCw, CheckCircle, SlidersHorizontal, Repea
 import { fromTimestamp, toTimestamp } from '@/lib/utils';
 import { toast } from 'sonner';
 import { OperationBadge } from '../demands/OperationBadge';
+import { EventBadge } from './EventBadge';
+import { isEventTask } from '@/services/tasks.service';
+import { format } from 'date-fns';
 
 // Os 4 status possíveis de uma tarefa
 const TASK_STATUSES: TaskStatus[] = ['Pendente', 'Em andamento', 'Cancelado', 'Concluída'];
@@ -26,6 +29,14 @@ interface TaskDrawerProps {
 }
 
 type TextFields = { title: string; description: string };
+
+/** Valor do input: 'yyyy-MM-dd' para tarefas e 'yyyy-MM-ddTHH:mm' (hora local) para eventos */
+function dueInputValue(task: Task): string {
+  if (!task.dueDate) return '';
+  return isEventTask(task)
+    ? format(fromTimestamp(task.dueDate), "yyyy-MM-dd'T'HH:mm")
+    : fromTimestamp(task.dueDate).toISOString().split('T')[0];
+}
 
 export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: TaskDrawerProps) {
   // ── Estado de UI ──────────────────────────────────────────────────────────
@@ -136,7 +147,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
     setDescription(textValues.description);
     setStatus(task.status);
     setPriority(task.priority ?? 0);
-    setDueDateStr(task.dueDate ? fromTimestamp(task.dueDate).toISOString().split('T')[0] : '');
+    setDueDateStr(dueInputValue(task));
     setRecurrence(task.recurrence ?? 'none');
     setSavingStatus('idle');
 
@@ -161,7 +172,7 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
     if (initializedIdRef.current !== task.id) return;
     setStatus(task.status);
     setPriority(task.priority ?? 0);
-    setDueDateStr(task.dueDate ? fromTimestamp(task.dueDate).toISOString().split('T')[0] : '');
+    setDueDateStr(dueInputValue(task));
     setRecurrence(task.recurrence ?? 'none');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.status, task?.priority, task?.dueDate, task?.recurrence]);
@@ -202,8 +213,11 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <OperationBadge operation={task.operation} />
-            <span className="text-xs text-muted-foreground">• Detalhes da Tarefa</span>
+            {isEventTask(task) && <EventBadge />}
+            {task.operation && <OperationBadge operation={task.operation} />}
+            <span className="text-xs text-muted-foreground">
+              • {isEventTask(task) ? 'Detalhes do Evento' : 'Detalhes da Tarefa'}
+            </span>
           </div>
 
           <div className="flex items-center gap-3">
@@ -236,21 +250,27 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
             <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
               Demanda vinculada
             </p>
-            <button
-              onClick={() => onOpenDemand?.(task.demandId)}
-              className="text-sm font-semibold text-violet-500 hover:text-violet-400 hover:underline block text-left truncate max-w-full transition"
-            >
-              {task.demandTitle || 'Sem título'}
-            </button>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
-              {task.demandId || '—'}
-            </p>
+            {task.demandId ? (
+              <>
+                <button
+                  onClick={() => onOpenDemand?.(task.demandId)}
+                  className="text-sm font-semibold text-violet-500 hover:text-violet-400 hover:underline block text-left truncate max-w-full transition"
+                >
+                  {task.demandTitle || 'Sem título'}
+                </button>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                  {task.demandId}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">Sem demanda vinculada</p>
+            )}
           </div>
 
           {/* Título */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Título da Tarefa
+              {isEventTask(task) ? 'Título do Evento' : 'Título da Tarefa'}
             </label>
             <input
               type="text"
@@ -321,16 +341,18 @@ export function TaskDrawer({ task, isOpen, onClose, onUpdate, onOpenDemand }: Ta
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                Prazo
+                {isEventTask(task) ? 'Data e hora' : 'Prazo'}
               </label>
               <input
-                type="date"
+                type={isEventTask(task) ? 'datetime-local' : 'date'}
                 value={dueDateStr}
                 onChange={(e) => {
                   const val = e.target.value;
                   setDueDateStr(val);
                   if (val) {
-                    handleFieldChange({ dueDate: toTimestamp(new Date(val + 'T12:00:00')) });
+                    // datetime-local já vem com a hora local; data simples fica ao meio-dia
+                    const date = isEventTask(task) ? new Date(val) : new Date(val + 'T12:00:00');
+                    handleFieldChange({ dueDate: toTimestamp(date) });
                   }
                 }}
                 className="w-full bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-medium text-foreground"

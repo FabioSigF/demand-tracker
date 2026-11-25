@@ -376,8 +376,8 @@ export function TasksTable() {
                     <th className="p-2 min-w-[200px]">Tarefa</th>
                     <th className="p-2 min-w-[350px]">Descrição</th>
                     <th className="p-2 w-36">Status</th>
-                    <th className="p-2 w-24">
-                      {activeTab === 'done' ? 'Finalizada' : 'Prazo'}
+                    <th className="p-2 w-28">
+                      {activeTab === 'done' ? 'Finalizada' : 'Prazo / Data'}
                     </th>
                     <th className="p-2 w-28">Criado em</th>
                     <th className="p-2 w-12"></th>

@@ -1,7 +1,7 @@
 import { Status, TaskRecurrence } from '@/types';
 
 export const STATUSES: Status[] = [
-  'Backlog', 'Pendente', 'Em andamento', 'Aguardando cliente', 'Concluído', 'Cancelado'
+  'Backlog', 'Pendente', 'Em andamento', 'Homologação', 'Aguardando cliente', 'Bloqueado', 'Concluído', 'Cancelado'
 ];
 
 export const OPERATION_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -65,12 +65,15 @@ export const STATUS_COLORS: Record<Status, { bg: string; text: string; dot: stri
   'Backlog':     { bg: 'bg-gray-100 dark:bg-gray-800',        text: 'text-gray-600 dark:text-gray-300',     dot: 'bg-gray-500' },
   'Pendente':    { bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
   'Em andamento':{ bg: 'bg-blue-100 dark:bg-blue-900/40',    text: 'text-blue-700 dark:text-blue-300',    dot: 'bg-blue-500' },
+  'Homologação': { bg: 'bg-teal-100 dark:bg-teal-900/40',     text: 'text-teal-700 dark:text-teal-300',     dot: 'bg-teal-500' },
   'Aguardando cliente': { bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', dot: 'bg-purple-500' },
+  // Vermelho sólido para não confundir com o vermelho suave de "Cancelado"
+  'Bloqueado':   { bg: 'bg-red-600 dark:bg-red-600',             text: 'text-white',                           dot: 'bg-white' },
   'Concluído':   { bg: 'bg-green-100 dark:bg-green-900/40',  text: 'text-green-700 dark:text-green-300',  dot: 'bg-green-500' },
   'Cancelado':   { bg: 'bg-red-100 dark:bg-red-900/40',      text: 'text-red-600 dark:text-red-400',      dot: 'bg-red-500' },
 };
 
-export const ACTIVE_STATUSES: Status[] = ['Backlog', 'Pendente', 'Em andamento', 'Aguardando cliente'];
+export const ACTIVE_STATUSES: Status[] = ['Backlog', 'Pendente', 'Em andamento', 'Homologação', 'Aguardando cliente', 'Bloqueado'];
 export const DONE_STATUSES: Status[] = ['Concluído', 'Cancelado'];
 
 export const DEBOUNCE_MS = 2000;

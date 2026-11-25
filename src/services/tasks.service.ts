@@ -4,7 +4,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Task, TaskRecurrence, TaskStatus } from '@/types/index';
+import { Task, TaskRecurrence, TaskStatus, TaskType } from '@/types/index';
 import { getNextDueDate } from '@/lib/recurrence';
 // Operation is typed as string below
 
@@ -112,6 +112,7 @@ export interface CreateTaskInput {
   priority?: number;
   dueDate?: Timestamp;
   recurrence?: TaskRecurrence;
+  type?: TaskType;
   existingOrders?: number[];
 }
 
@@ -122,8 +123,20 @@ export interface TaskDemandTarget {
   operation: string;
 }
 
+export const isEventTask = (task: Pick<Task, 'type'>) => task.type === 'event';
+
+/** Eventos primeiro, por data/hora; depois tarefas, por prioridade e criação */
 export function sortTasksByPriorityAndTime(tasks: Task[], timeOrder: 'asc' | 'desc' = 'asc'): Task[] {
   return [...tasks].sort((a, b) => {
+    const evA = isEventTask(a);
+    const evB = isEventTask(b);
+    if (evA !== evB) return evA ? -1 : 1;
+    if (evA && evB) {
+      const dA = a.dueDate?.toDate ? a.dueDate.toDate().getTime() : 0;
+      const dB = b.dueDate?.toDate ? b.dueDate.toDate().getTime() : 0;
+      return dA - dB;
+    }
+
     const pA = a.priority ?? 0;
     const pB = b.priority ?? 0;
     if (pB !== pA) {
@@ -141,6 +154,7 @@ function buildNewTask(input: CreateTaskInput, now: Timestamp) {
     ...data,
     priority: data.priority ?? 0,
     recurrence: data.recurrence ?? 'none',
+    type: data.type ?? 'task',
     status: 'Pendente' as TaskStatus,
     order:  generateOrder(existingOrders),
     createdAt: now,
@@ -154,14 +168,23 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
   return ref.id;
 }
 
-/** Cria uma cópia da tarefa para cada demanda, em uma única escrita atômica */
+/** Usado por eventos que não pertencem a nenhuma demanda */
+export const NO_DEMAND_TARGET: TaskDemandTarget = { demandId: '', demandTitle: '', operation: '' };
+
+/**
+ * Cria uma cópia da tarefa para cada demanda, em uma única escrita atômica.
+ * Sem demandas, cria um único item avulso (permitido apenas para eventos).
+ */
 export async function createTaskForDemands(
   input: Omit<CreateTaskInput, 'demandId' | 'demandTitle' | 'operation'>,
   targets: TaskDemandTarget[]
 ): Promise<string[]> {
+  if (targets.length === 0 && input.type !== 'event') {
+    throw new Error('Tarefas precisam de ao menos uma demanda');
+  }
   const now   = Timestamp.now();
   const batch = writeBatch(db);
-  const ids = targets.map(target => {
+  const ids = (targets.length ? targets : [NO_DEMAND_TARGET]).map(target => {
     const ref = doc(collection(db, COLLECTION));
     batch.set(ref, buildNewTask({ ...input, ...target }, now));
     return ref.id;
@@ -205,6 +228,7 @@ export async function updateTask(
         description: data.description ?? current.description,
         priority:    data.priority ?? current.priority,
         recurrence,
+        type:        current.type,
         dueDate:     Timestamp.fromDate(getNextDueDate(baseDue, recurrence)),
         existingOrders: [current.order],
       }, now));

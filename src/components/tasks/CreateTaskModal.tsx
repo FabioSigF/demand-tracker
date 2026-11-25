@@ -6,10 +6,10 @@ import { format } from 'date-fns';
 import { useDemands } from '@/hooks/useDemands';
 import { createTaskForDemands } from '@/services/tasks.service';
 import { useAuthContext } from '@/contexts/AuthContext';
-import { Demand, TaskRecurrence } from '@/types';
+import { Demand, TaskRecurrence, TaskType } from '@/types';
 import { DONE_STATUSES, TASK_RECURRENCE_OPTIONS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { Search, X, Plus, RefreshCw, ChevronRight, Check, Calendar, Repeat } from 'lucide-react';
+import { Search, X, Plus, RefreshCw, ChevronRight, Check, Calendar, Repeat, Clock, ListTodo, CalendarClock } from 'lucide-react';
 import { OperationBadge } from '../demands/OperationBadge';
 import { toast } from 'sonner';
 
@@ -21,6 +21,9 @@ interface CreateTaskModalProps {
 }
 
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
+// Próxima hora cheia, sugestão padrão para eventos (após 23h cai no dia seguinte)
+const nextHour = () => new Date(Date.now() + 60 * 60 * 1000);
+const nextHourStr = () => format(nextHour(), 'HH:00');
 
 export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTaskModalProps) {
   const { user } = useAuthContext();
@@ -38,7 +41,11 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
   const [priority,        setPriority]        = useState<number>(0);
   const [dueDateStr,      setDueDateStr]      = useState(todayStr);
   const [recurrence,      setRecurrence]      = useState<TaskRecurrence>('none');
+  const [kind,            setKind]            = useState<TaskType>('task');
+  const [eventTimeStr,    setEventTimeStr]    = useState(nextHourStr);
   const [saving,          setSaving]          = useState(false);
+
+  const isEvent = kind === 'event';
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const overlayRef    = useRef<HTMLDivElement>(null);
@@ -59,6 +66,8 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
     setPriority(0);
     setDueDateStr(todayStr());
     setRecurrence('none');
+    setKind('task');
+    setEventTimeStr(nextHourStr());
     setSaving(false);
   }, [open, preselectedDemand]);
 
@@ -104,8 +113,14 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
 
   const handleCreate = async () => {
     if (!title.trim()) { toast.error('Informe um título para a tarefa'); return; }
-    if (selectedDemands.length === 0) { toast.error('Selecione ao menos uma demanda'); return; }
+    if (!isEvent && selectedDemands.length === 0) { toast.error('Selecione ao menos uma demanda'); return; }
+    if (isEvent && (!dueDateStr || !eventTimeStr)) { toast.error('Informe a data e a hora do evento'); return; }
     if (!user) return;
+
+    // Evento guarda data + hora; tarefa guarda só o dia (meio-dia evita virar o dia por fuso)
+    const dueDate = dueDateStr
+      ? Timestamp.fromDate(new Date(`${dueDateStr}T${isEvent ? eventTimeStr : '12:00'}:00`))
+      : undefined;
 
     setSaving(true);
     try {
@@ -114,9 +129,10 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
           userId:      user.uid,
           title:       title.trim(),
           description: description.trim(),
-          priority,
+          priority:    isEvent ? 0 : priority,
           recurrence,
-          dueDate: dueDateStr ? Timestamp.fromDate(new Date(dueDateStr + 'T12:00:00')) : undefined,
+          type:        kind,
+          dueDate,
         },
         selectedDemands.map(d => ({
           demandId:    d.id,
@@ -124,10 +140,11 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
           operation:   d.operation,
         }))
       );
+      const created = isEvent ? 'Evento criado' : 'Tarefa criada';
       toast.success(
         selectedDemands.length > 1
-          ? `Tarefa criada em ${selectedDemands.length} demandas`
-          : 'Tarefa criada'
+          ? `${created} em ${selectedDemands.length} demandas`
+          : created
       );
       onClose();
     } catch {
@@ -170,8 +187,38 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                 </button>
               )}
               <h2 className="text-sm font-semibold text-foreground">
-                {step === 'demand' ? 'Nova Tarefa — Selecionar Demandas' : 'Nova Tarefa'}
+                {isEvent ? 'Novo Evento' : 'Nova Tarefa'}
               </h2>
+            </div>
+            <div className="flex items-center bg-muted/40 border border-border rounded-lg p-0.5 ml-auto mr-2" role="group" aria-label="Tipo">
+              {([
+                { value: 'task',  label: 'Tarefa', icon: ListTodo },
+                { value: 'event', label: 'Evento', icon: CalendarClock },
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setKind(opt.value);
+                    // Mantém data e hora sugeridas coerentes quando a próxima hora já é amanhã
+                    if (opt.value === 'event' && dueDateStr === todayStr()) {
+                      setDueDateStr(format(nextHour(), 'yyyy-MM-dd'));
+                      setEventTimeStr(nextHourStr());
+                    }
+                  }}
+                  aria-pressed={kind === opt.value}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold transition',
+                    kind === opt.value
+                      ? opt.value === 'event'
+                        ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                        : 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  <opt.icon className="w-3.5 h-3.5" />
+                  {opt.label}
+                </button>
+              ))}
             </div>
             <button
               onClick={onClose}
@@ -198,7 +245,9 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                   />
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-2">
-                  Selecione uma ou mais demandas. Uma tarefa será criada em cada uma.
+                  {isEvent
+                    ? 'Vincule o evento a uma ou mais demandas, ou continue sem demanda.'
+                    : 'Selecione uma ou mais demandas. Uma tarefa será criada em cada uma.'}
                 </p>
               </div>
 
@@ -257,10 +306,10 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                 </span>
                 <button
                   onClick={() => setStep('task')}
-                  disabled={selectedDemands.length === 0}
+                  disabled={!isEvent && selectedDemands.length === 0}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition"
                 >
-                  Continuar
+                  {isEvent && selectedDemands.length === 0 ? 'Continuar sem demanda' : 'Continuar'}
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -268,11 +317,16 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
           )}
 
           {/* ── Passo 2: preencher tarefa ── */}
-          {step === 'task' && selectedDemands.length > 0 && (
+          {step === 'task' && (selectedDemands.length > 0 || isEvent) && (
             <div className="flex flex-col min-h-0 flex-1">
               <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
 
                 {/* Demandas selecionadas */}
+                {selectedDemands.length === 0 ? (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-xl px-3 py-2.5 text-xs text-green-700 dark:text-green-300">
+                    Evento avulso, sem demanda vinculada.
+                  </div>
+                ) : (
                 <div className="bg-muted/30 border border-border/60 rounded-xl px-3 py-2.5 space-y-2">
                   <p className="text-xs text-muted-foreground">
                     {selectedDemands.length > 1
@@ -299,11 +353,12 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     ))}
                   </div>
                 </div>
+                )}
 
                 {/* Título */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Título da Tarefa <span className="text-destructive">*</span>
+                    {isEvent ? 'Título do Evento' : 'Título da Tarefa'} <span className="text-destructive">*</span>
                   </label>
                   <input
                     ref={titleInputRef}
@@ -312,17 +367,17 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     maxLength={200}
                     onChange={e => setTitle(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleCreate(); }}
-                    placeholder="O que precisa ser feito?"
+                    placeholder={isEvent ? 'Ex.: Reunião de alinhamento com o cliente' : 'O que precisa ser feito?'}
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Prazo */}
+                  {/* Prazo / data do evento */}
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      Prazo
+                      {isEvent ? 'Data' : 'Prazo'}
                     </label>
                     <input
                       type="date"
@@ -332,8 +387,23 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     />
                   </div>
 
-                  {/* Recorrência */}
-                  <div className="space-y-1.5">
+                  {isEvent && (
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Hora
+                      </label>
+                      <input
+                        type="time"
+                        value={eventTimeStr}
+                        onChange={e => setEventTimeStr(e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition"
+                      />
+                    </div>
+                  )}
+
+                  {/* Recorrência — linha própria no evento (data + hora ocupam a primeira) */}
+                  <div className={cn('space-y-1.5', isEvent && 'col-span-2')}>
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                       <Repeat className="w-3 h-3" />
                       Repetir
@@ -355,7 +425,8 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                   </p>
                 )}
 
-                {/* Prioridade */}
+                {/* Prioridade — eventos são ordenados por data/hora */}
+                {!isEvent && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
@@ -374,6 +445,7 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary text-foreground transition font-semibold"
                   />
                 </div>
+                )}
 
                 {/* Descrição */}
                 <div className="space-y-1.5">
@@ -406,7 +478,11 @@ export function CreateTaskModal({ open, onClose, preselectedDemand }: CreateTask
                 >
                   {saving
                     ? <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Criando...</>
-                    : <><Plus className="w-3.5 h-3.5" /> {selectedDemands.length > 1 ? `Criar ${selectedDemands.length} Tarefas` : 'Criar Tarefa'}</>
+                    : <><Plus className="w-3.5 h-3.5" /> {
+                        selectedDemands.length > 1
+                          ? `Criar ${selectedDemands.length} ${isEvent ? 'Eventos' : 'Tarefas'}`
+                          : isEvent ? 'Criar Evento' : 'Criar Tarefa'
+                      }</>
                   }
                 </button>
               </div>

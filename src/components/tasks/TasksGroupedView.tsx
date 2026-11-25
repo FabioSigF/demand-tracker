@@ -5,11 +5,13 @@ import { ChevronDown, CheckCircle2, Circle, Calendar, Plus, ExternalLink } from 
 import { Demand } from '@/types';
 import { Task } from '@/types/index';
 import { useDemands } from '@/hooks/useDemands';
-import { formatDateShort, cn } from '@/lib/utils';
+import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
+import { isEventTask } from '@/services/tasks.service';
 import { OperationBadge } from '../demands/OperationBadge';
 import { StatusBadge } from '../demands/StatusBadge';
 import { RecurrenceBadge } from './RecurrenceBadge';
 import { STATUS_BADGE } from './TaskRow';
+import { EventBadge, EVENT_ACCENT_CLASSES, EVENT_ROW_CLASSES } from './EventBadge';
 
 interface TasksGroupedViewProps {
   /** Tarefas já filtradas e ordenadas pela página */
@@ -52,7 +54,7 @@ export function TasksGroupedView({
         group = {
           demandId:  t.demandId,
           demand,
-          title:     demand?.task || t.demandTitle || 'Sem título',
+          title:     t.demandId ? (demand?.task || t.demandTitle || 'Sem título') : 'Sem demanda vinculada',
           operation: demand?.operation ?? t.operation,
           tasks:     [],
         };
@@ -60,9 +62,9 @@ export function TasksGroupedView({
       }
       group.tasks.push(t);
     }
-    return [...byDemand.values()].sort(
-      (a, b) => (a.demand?.order ?? Infinity) - (b.demand?.order ?? Infinity)
-    );
+    // Itens sem demanda (eventos avulsos) vêm primeiro; demandas apagadas, por último
+    const rank = (g: TaskGroup) => (!g.demandId ? -Infinity : g.demand?.order ?? Infinity);
+    return [...byDemand.values()].sort((a, b) => rank(a) - rank(b));
   }, [tasks, demands]);
 
   const toggleGroup = (demandId: string) => {
@@ -74,7 +76,8 @@ export function TasksGroupedView({
     });
   };
 
-  const today = startOfDay(new Date());
+  const now   = new Date();
+  const today = startOfDay(now);
 
   return (
     <div className="space-y-3">
@@ -91,7 +94,7 @@ export function TasksGroupedView({
                 className="flex items-center gap-2 flex-1 min-w-0 text-left"
               >
                 <ChevronDown className={cn('w-4 h-4 text-muted-foreground shrink-0 transition-transform', isCollapsed && '-rotate-90')} />
-                <OperationBadge operation={group.operation} />
+                {group.operation && <OperationBadge operation={group.operation} />}
                 {group.demand?.demandId && (
                   <span className="font-mono font-bold text-violet-500 text-xs shrink-0">{group.demand.demandId}</span>
                 )}
@@ -113,13 +116,15 @@ export function TasksGroupedView({
                   <Plus className="w-4 h-4" />
                 </button>
               )}
-              <button
-                onClick={() => onOpenDemand(group.demandId)}
-                title="Abrir demanda"
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition shrink-0"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
+              {group.demandId && (
+                <button
+                  onClick={() => onOpenDemand(group.demandId)}
+                  title="Abrir demanda"
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition shrink-0"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Tarefas */}
@@ -128,14 +133,19 @@ export function TasksGroupedView({
                 {group.tasks.map(task => {
                   const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
                   const badge = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
-                  const isOverdue = !isDone && !!task.dueDate && isBefore(task.dueDate.toDate(), today);
+                  const isEvent = isEventTask(task);
+                  // Evento vence pelo horário; tarefa, pelo dia
+                  const isOverdue = !isDone && !!task.dueDate && isBefore(task.dueDate.toDate(), isEvent ? now : today);
                   const dateValue = showCompletedAt ? task.completedAt : task.dueDate;
                   const priority = task.priority ?? 0;
                   return (
                     <li
                       key={task.id}
                       onClick={() => onOpenTask(task)}
-                      className="flex items-center gap-3 pl-4 pr-3 py-2 hover:bg-muted/15 transition cursor-pointer group"
+                      className={cn(
+                        'flex items-center gap-3 pl-4 pr-3 py-2 transition cursor-pointer group',
+                        isEvent ? [EVENT_ROW_CLASSES, EVENT_ACCENT_CLASSES, 'pl-3'] : 'hover:bg-muted/15'
+                      )}
                     >
                       <button
                         onClick={(e) => { e.stopPropagation(); onToggleStatus(task); }}
@@ -152,8 +162,9 @@ export function TasksGroupedView({
                         <span className={cn('text-sm font-medium truncate', isDone ? 'line-through text-muted-foreground' : 'text-foreground')}>
                           {task.title || <span className="italic text-muted-foreground">Sem título</span>}
                         </span>
+                        {isEvent && <EventBadge />}
                         <RecurrenceBadge recurrence={task.recurrence} />
-                        {priority !== 0 && (
+                        {!isEvent && priority !== 0 && (
                           <span
                             title="Prioridade"
                             className={cn(
@@ -175,13 +186,17 @@ export function TasksGroupedView({
 
                       <span
                         className={cn(
-                          'flex items-center gap-1 text-xs tabular-nums w-16 justify-end shrink-0',
-                          isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground'
+                          'flex items-center gap-1 text-xs tabular-nums w-24 justify-end shrink-0',
+                          isOverdue
+                            ? 'text-destructive font-semibold'
+                            : isEvent && !showCompletedAt ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-muted-foreground'
                         )}
-                        title={showCompletedAt ? 'Finalizada em' : isOverdue ? 'Prazo vencido' : 'Prazo'}
+                        title={showCompletedAt ? 'Finalizada em' : isEvent ? 'Data e hora do evento' : isOverdue ? 'Prazo vencido' : 'Prazo'}
                       >
                         <Calendar className="w-3 h-3 shrink-0" />
-                        {dateValue ? formatDateShort(dateValue) : '—'}
+                        {dateValue
+                          ? (isEvent && !showCompletedAt ? formatDateTimeShort(dateValue) : formatDateShort(dateValue))
+                          : '—'}
                       </span>
                     </li>
                   );

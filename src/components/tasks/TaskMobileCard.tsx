@@ -6,6 +6,8 @@ import { formatDateShort, formatDateTimeShort, cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useConfirm } from '@/contexts/ConfirmModalContext';
 import { RecurrenceBadge } from './RecurrenceBadge';
+import { EventBadge, EVENT_ACCENT_CLASSES, EVENT_ROW_CLASSES } from './EventBadge';
+import { isEventTask } from '@/services/tasks.service';
 
 const STATUS_BADGE: Record<TaskStatus, { label: string; classes: string; dot: string }> = {
   'Pendente': { label: 'Pendente', classes: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', dot: 'bg-yellow-500' },
@@ -33,6 +35,7 @@ export function TaskMobileCard({
 }: TaskMobileCardProps) {
   const { confirm } = useConfirm();
   const isDone = task.status === 'Concluída' || task.status === 'Cancelado';
+  const isEvent = isEventTask(task);
   const badge = STATUS_BADGE[task.status] ?? STATUS_BADGE['Pendente'];
 
   const handleDeleteRequest = async (e: React.MouseEvent) => {
@@ -70,7 +73,10 @@ export function TaskMobileCard({
   return (
     <div
       onClick={() => onOpenDetails(task)}
-      className="bg-card border border-border/80 rounded-2xl p-4 space-y-3.5 shadow-sm hover:border-violet-500/30 transition duration-150 active:scale-[0.99] cursor-pointer"
+      className={cn(
+        'bg-card border border-border/80 rounded-2xl p-4 space-y-3.5 shadow-sm hover:border-violet-500/30 transition duration-150 active:scale-[0.99] cursor-pointer',
+        isEvent && [EVENT_ROW_CLASSES, EVENT_ACCENT_CLASSES]
+      )}
     >
       {/* Top row: Checkbox status, operation badge, priority badge and status badge */}
       <div className="flex items-center justify-between gap-2">
@@ -84,8 +90,9 @@ export function TaskMobileCard({
           >
             {isDone ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
           </button>
-          <OperationBadge operation={task.operation} className="text-[10px] px-1.5 py-0" />
-          {task.priority !== undefined && task.priority !== 0 && (
+          {isEvent && <EventBadge />}
+          {task.operation && <OperationBadge operation={task.operation} className="text-[10px] px-1.5 py-0" />}
+          {!isEvent && task.priority !== undefined && task.priority !== 0 && (
             <span className={cn(
               "text-[10px] font-bold px-1.5 py-0.2 rounded-md",
               task.priority > 0
@@ -105,13 +112,15 @@ export function TaskMobileCard({
 
       {/* Task and Demand title */}
       <div className="space-y-1">
-        <button
-          onClick={handleDemandBadgeClick}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted/60 hover:bg-muted border border-border/50 text-[10px] font-medium text-muted-foreground hover:text-foreground transition max-w-[200px]"
-          title={`Abrir demanda: ${task.demandTitle}`}
-        >
-          <span className="truncate">{task.demandTitle || 'Demanda sem título'}</span>
-        </button>
+        {task.demandId && (
+          <button
+            onClick={handleDemandBadgeClick}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted/60 hover:bg-muted border border-border/50 text-[10px] font-medium text-muted-foreground hover:text-foreground transition max-w-[200px]"
+            title={`Abrir demanda: ${task.demandTitle}`}
+          >
+            <span className="truncate">{task.demandTitle || 'Demanda sem título'}</span>
+          </button>
+        )}
 
         <h4 className={`font-semibold text-sm leading-snug ${isDone ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
           {task.title || <span className="text-muted-foreground italic">Sem título</span>}
@@ -138,13 +147,13 @@ export function TaskMobileCard({
 
         <div className="flex items-center gap-1 text-muted-foreground justify-end">
           <Calendar className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
-          <span className="text-[10px]">{showCompletedAt ? 'Fim:' : 'Prazo:'}</span>
-          <span className="text-foreground font-semibold">
+          <span className="text-[10px]">{showCompletedAt ? 'Fim:' : isEvent ? 'Quando:' : 'Prazo:'}</span>
+          <span className={cn('font-semibold', isEvent && !showCompletedAt ? 'text-green-600 dark:text-green-400' : 'text-foreground')}>
             {showCompletedAt ? (
               task.completedAt ? formatDateShort(task.completedAt) : '—'
-            ) : (
-              task.dueDate ? formatDateShort(task.dueDate) : '—'
-            )}
+            ) : task.dueDate ? (
+              isEvent ? formatDateTimeShort(task.dueDate) : formatDateShort(task.dueDate)
+            ) : '—'}
           </span>
         </div>
       </div>

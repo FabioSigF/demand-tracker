@@ -14,7 +14,9 @@ export type Status =
   | 'Backlog'
   | 'Pendente'
   | 'Em andamento'
+  | 'Homologação'
   | 'Aguardando cliente'
+  | 'Bloqueado'
   | 'Concluído'
   | 'Cancelado';
 
@@ -73,6 +75,12 @@ export interface AnalyticsData {
 
 export type TaskStatus = 'Pendente' | 'Em andamento' | 'Cancelado' | 'Concluída';
 
+/**
+ * 'event' = compromisso com data e hora (reunião, homologação agendada...).
+ * Usa `dueDate` como data/hora do evento e pode não ter demanda (demandId vazio).
+ */
+export type TaskType = 'task' | 'event';
+
 /** Ao concluir uma tarefa recorrente, a próxima ocorrência é criada automaticamente */
 export type TaskRecurrence = 'none' | 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly';
 
@@ -85,6 +93,8 @@ export interface Task {
   title: string;
   description: string;
   status: TaskStatus;
+  /** Ausente em tarefas antigas = 'task' */
+  type?: TaskType;
   order: number;
   priority?: number;
   dueDate?: Timestamp;
